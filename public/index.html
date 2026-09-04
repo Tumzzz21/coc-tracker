@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clan Activity Tracker</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">⚔ Clan Activity Tracker</a>
+    <nav><a href="#roster">Roster</a><a href="#wars">Wars</a><a href="#capital">Capital</a></nav>
+    <div class="auth-actions"><span id="user-label"></span><a id="login-link" href="/login.html">Admin login</a><button id="logout-button" class="secondary hidden">Log out</button></div>
+  </header>
+  <main class="container">
+    <section class="hero">
+      <div><p class="eyebrow">CLAN OPERATIONS</p><h1>Keep every attack countable.</h1><p>One clear view of your member activity across war and the Clan Capital raid weekend.</p></div>
+      <div id="auth-banner" class="banner">Log in to manage activity.</div>
+    </section>
+    <div id="notice" class="notice" role="status"></div>
+    <section id="roster" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">MEMBERS</p><h2>Clan roster</h2></div><span id="member-count" class="pill">0 members</span></div>
+      <form id="member-form" class="form-grid auth-required">
+        <label>Player tag <input name="playerTag" placeholder="#ABC123" maxlength="15" required></label>
+        <label>Player name <input name="playerName" maxlength="100" required></label>
+        <label>Town Hall <input name="townHallLevel" type="number" min="1" max="18" required></label>
+        <label>Role <select name="role"><option>member</option><option>elder</option><option>co-leader</option><option>leader</option></select></label>
+        <button type="submit">Add member</button>
+      </form>
+      <div id="member-list" class="table-wrap"></div>
+    </section>
+    <div class="two-col">
+      <section id="wars" class="panel">
+        <div class="section-heading"><div><p class="eyebrow">WAR LOG</p><h2>War attacks</h2></div></div>
+        <form id="war-form" class="stack auth-required">
+          <label>Member <select name="memberId" class="member-options" required></select></label>
+          <label>War date <input name="warDate" type="date" required></label>
+          <div class="form-grid"><label>Attacks used <input name="attacksUsed" type="number" min="0" max="2" value="2" required></label><label class="check"><input name="missedAttack" type="checkbox"> Missed attack</label></div>
+          <button type="submit">Save war activity</button>
+        </form>
+        <div id="war-list" class="activity-list"></div>
+      </section>
+      <section id="capital" class="panel">
+        <div class="section-heading"><div><p class="eyebrow">RAID WEEKEND</p><h2>Clan Capital</h2></div></div>
+        <form id="capital-form" class="stack auth-required">
+          <label>Member <select name="memberId" class="member-options" required></select></label>
+          <label>Raid weekend date <input name="raidWeekendDate" type="date" required></label>
+          <div class="form-grid"><label>Attacks used <input name="attacksUsed" type="number" min="0" max="6" value="6" required></label><label>Capital gold <input name="capitalGoldLooted" type="number" min="0" value="0" required></label></div>
+          <button type="submit">Save Capital activity</button>
+        </form>
+        <div id="capital-list" class="activity-list"></div>
+      </section>
+    </div>
+    <section class="panel auth-required">
+      <div class="section-heading"><div><p class="eyebrow">PERSONALIZE</p><h2>Background customizer</h2></div></div>
+      <form id="settings-form" class="inline-form"><label>Image URL <input name="bgImageUrl" type="url" placeholder="https://example.com/clan.jpg"></label><button type="submit">Apply background</button><button id="clear-background" type="button" class="secondary">Clear</button></form>
+    </section>
+  </main>
+  <script src="/js/main.js"></script>
+</body>
+</html>

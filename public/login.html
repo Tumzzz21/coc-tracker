@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clan Activity Tracker · Admin login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <a class="brand" href="/">⚔ Clan Activity Tracker</a>
+    <h1>Admin access</h1>
+    <p class="muted">Manage the roster, wars, and Clan Capital participation.</p>
+    <div id="notice" class="notice" role="status"></div>
+    <form id="login-form" class="stack">
+      <label>Email <input name="email" type="email" autocomplete="email" required></label>
+      <label>Password <input name="password" type="password" minlength="8" autocomplete="current-password" required></label>
+      <button type="submit">Log in</button>
+    </form>
+    <details>
+      <summary>First time here?</summary>
+      <form id="register-form" class="stack compact">
+        <label>Email <input name="email" type="email" required></label>
+        <label>Password <input name="password" type="password" minlength="8" required></label>
+        <button type="submit" class="secondary">Register admin</button>
+      </form>
+      <form id="confirm-form" class="stack compact">
+        <label>Confirmation email <input name="email" type="email" required></label>
+        <label>6-digit code <input name="code" inputmode="numeric" pattern="[0-9]{6}" required></label>
+        <button type="submit" class="secondary">Confirm email</button>
+      </form>
+    </details>
+    <p><a href="/">Back to tracker</a></p>
+  </main>
+  <script src="/js/main.js"></script>
+</body>
+</html>
