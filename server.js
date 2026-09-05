@@ -6,6 +6,7 @@ const pool = require('./config/db');
 const authRoutes = require('./routes/auth');
 const memberRoutes = require('./routes/members');
 const warRoutes = require('./routes/wars');
+const sessionRoutes = require('./routes/sessions');
 const { requireAuth } = authRoutes;
 
 const app = express();
@@ -19,6 +20,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', authRoutes.router);
 app.use('/api/members', memberRoutes);
 app.use('/api', warRoutes);
+app.use('/api/sessions', sessionRoutes);
 
 app.get('/api/settings', async (req, res, next) => {
   try {
@@ -63,13 +65,27 @@ app.use((error, req, res, next) => {
   // Keep database details out of responses while preserving a useful server log.
   console.error(error);
   if (res.headersSent) return next(error);
+  if (error && error.code === 'ER_NO_SUCH_TABLE') {
+    error.statusCode = 503;
+    error.publicMessage = 'Session database tables are missing. Restart the server to initialize them.';
+  }
   res.status(error.statusCode || 500).json({
-    error: error.statusCode ? error.message : 'An unexpected server error occurred.'
+    error: error.publicMessage || (error.statusCode ? error.message : 'An unexpected server error occurred.')
   });
 });
 
-app.listen(port, () => {
-  console.log(`Clan tracker listening on port ${port}`);
-});
+async function startServer() {
+  try {
+    await sessionRoutes.initializeSessionTables();
+    app.listen(port, () => {
+      console.log(`Clan tracker listening on port ${port}`);
+    });
+  } catch (error) {
+    console.error('Unable to initialize session tables before startup.', error);
+    process.exitCode = 1;
+  }
+}
+
+if (require.main === module) startServer();
 
 module.exports = app;

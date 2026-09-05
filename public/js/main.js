@@ -2,7 +2,7 @@
   'use strict';
 
   const tokenKey = 'cocClanTrackerToken';
-  const state = { token: localStorage.getItem(tokenKey), members: [] };
+  const state = { token: localStorage.getItem(tokenKey), members: [], attendance: new Map(), sessions: { war: null, capital: null }, sessionLists: { war: [], capital: [] }, sort: { war: { mode: 'status', descending: true }, capital: { mode: 'status', descending: true } }, history: JSON.parse(localStorage.getItem('cocSessionHistory') || '{"war":[],"capital":[]}') };
   const $ = (selector) => document.querySelector(selector);
   const all = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -33,11 +33,25 @@
     if (banner) banner.textContent = loggedIn ? 'Admin mode active — changes are protected by your session.' : 'Log in to manage activity.';
   }
 
+  function bindTabs() {
+    const buttons = all('.tab-button');
+    buttons.forEach((button) => button.addEventListener('click', () => {
+      const tab = button.dataset.tab;
+      buttons.forEach((item) => item.classList.toggle('active', item === button));
+      all('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tab));
+      history.replaceState(null, '', `#${tab}`);
+      if (tab === 'war' || tab === 'capital') renderAttendance(tab);
+    }));
+    const requested = window.location.hash.slice(1);
+    const button = buttons.find((item) => item.dataset.tab === requested);
+    if (button) button.click();
+  }
+
   function memberOptions() {
     all('.member-options').forEach((select) => {
       const current = select.value;
       select.innerHTML = '<option value="">Choose member…</option>' + state.members.map((member) =>
-        `<option value="${member.id}">${escapeHtml(member.playerName)} (${escapeHtml(member.playerTag)})</option>`).join('');
+        `<option value="${member.id}">${escapeHtml(member.playerName)} (${escapeHtml(member.playerTag || 'N/A')})</option>`).join('');
       select.value = current;
     });
   }
@@ -52,10 +66,13 @@
     state.members = result.data;
     const count = $('#member-count');
     if (count) count.textContent = `${state.members.length} member${state.members.length === 1 ? '' : 's'}`;
+    const panelCount = $('#member-count-panel');
+    if (panelCount) panelCount.textContent = `${state.members.length} member${state.members.length === 1 ? '' : 's'}`;
     const target = $('#member-list');
-    if (target) target.innerHTML = state.members.length ? `<table class="data-table"><thead><tr><th>Player</th><th>Town Hall</th><th>Role</th><th></th></tr></thead><tbody>${state.members.map((member) =>
-      `<tr><td><strong>${escapeHtml(member.playerName)}</strong><br><small>${escapeHtml(member.playerTag)}</small></td><td>TH${member.townHallLevel}</td><td>${escapeHtml(member.role)}</td><td><button class="secondary edit-member" data-id="${member.id}">Edit</button> <button class="secondary delete-member" data-id="${member.id}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">No members yet. Add the first clan member above.</div>';
+    if (target) target.innerHTML = state.members.length ? `<table class="data-table"><thead><tr><th>#</th><th>Player</th><th>Tag</th><th>Town Hall</th><th>Role</th><th></th></tr></thead><tbody>${state.members.map((member, index) =>
+      `<tr><td class="roster-number">${index + 1}.</td><td><strong>${escapeHtml(member.playerName)}</strong></td><td><small>${escapeHtml(member.playerTag || 'N/A')}</small></td><td>TH${member.townHallLevel}</td><td><span class="role-badge role-${escapeHtml(member.role)}">${escapeHtml(member.role)}</span></td><td><button class="secondary edit-member" data-id="${member.id}">Edit</button> <button class="secondary delete-member" data-id="${member.id}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">No members yet. Add the first clan member above.</div>';
     memberOptions();
+    renderAttendance('war');
   }
 
   function formObject(form) {
@@ -65,12 +82,158 @@
   async function loadActivity() {
     if (!state.token) return;
     const [wars, capital] = await Promise.all([api('/wars'), api('/capital')]);
+    state.wars = wars.data;
     const warTarget = $('#war-list');
     if (warTarget) warTarget.innerHTML = wars.data.length ? wars.data.map((item) =>
       `<div class="activity-item"><div><strong>${escapeHtml(item.playerName)}</strong> <small>${escapeHtml(item.warDate)}</small><br><small>${item.attacksUsed}/2 attacks · ${item.missedAttack ? 'missed' : 'complete'}</small></div><button class="secondary delete-war" data-id="${item.id}">Delete</button></div>`).join('') : '<div class="empty">No war activity logged.</div>';
     const capitalTarget = $('#capital-list');
     if (capitalTarget) capitalTarget.innerHTML = capital.data.length ? capital.data.map((item) =>
       `<div class="activity-item"><div><strong>${escapeHtml(item.playerName)}</strong> <small>${escapeHtml(item.raidWeekendDate)}</small><br><small>${item.attacksUsed}/6 attacks · ${item.capitalGoldLooted.toLocaleString()} gold</small></div><button class="secondary delete-capital" data-id="${item.id}">Delete</button></div>`).join('') : '<div class="empty">No Capital activity logged.</div>';
+  }
+
+  function renderAttendance(type) {
+    const target = type === 'capital' ? $('#capital-attendance-grid') : $('#attendance-grid');
+    if (!target) return;
+    if (!state.token) {
+      target.innerHTML = '<div class="empty">Log in to manage attendance.</div>';
+      return;
+    }
+    const session = state.sessions[type];
+    const members = [...state.members].sort((left, right) => {
+      const leftStatus = session ? session.attendance[left.id] || 'unmarked' : 'unmarked';
+      const rightStatus = session ? session.attendance[right.id] || 'unmarked' : 'unmarked';
+      const statusRank = { present: 3, unmarked: 2, absent: 1 };
+      const leftAttacks = session ? Number(session.attacks[left.id] || 0) : 0;
+      const rightAttacks = session ? Number(session.attacks[right.id] || 0) : 0;
+      const sortState = state.sort[type];
+      const difference = sortState.mode === 'attacks'
+        ? rightAttacks - leftAttacks
+        : statusRank[rightStatus] - statusRank[leftStatus];
+      if (difference !== 0) return sortState.descending ? difference : -difference;
+      return left.playerName.localeCompare(right.playerName);
+    });
+    target.innerHTML = members.length ? members.map((member, index) => {
+      const selected = session && session.members.includes(member.id);
+      const status = session ? session.attendance[member.id] || 'unmarked' : 'unmarked';
+      const finished = session && session.status === 'finished';
+      const maxAttacks = type === 'war' ? 2 : 6;
+      const attacks = session ? Math.min(maxAttacks, Math.max(0, Number(session.attacks[member.id] || 0))) : 0;
+      return `<div class="attendance-row ${selected ? '' : 'not-selected'}"><span class="roster-number">${index + 1}.</span><div class="member-summary"><strong>${escapeHtml(member.playerName)}</strong><small>${escapeHtml(member.playerTag || 'N/A')} · <span class="role-badge role-${escapeHtml(member.role)}">${escapeHtml(member.role)}</span></small></div><div class="attendance-actions">${selected ? `<label class="attack-count">Attacks <input class="attacks-input" data-id="${member.id}" type="number" min="0" max="${maxAttacks}" value="${attacks}" aria-label="Attacks used by ${escapeHtml(member.playerName)}" ${finished ? 'disabled' : ''}></label><button class="attendance-toggle present ${status === 'present' ? 'selected' : ''}" data-id="${member.id}" data-status="present" aria-label="Mark ${escapeHtml(member.playerName)} present" ${finished ? 'disabled' : ''}>✓</button><button class="attendance-toggle absent ${status === 'absent' ? 'selected' : ''}" data-id="${member.id}" data-status="absent" aria-label="Mark ${escapeHtml(member.playerName)} absent" ${finished ? 'disabled' : ''}>X</button>` : (finished ? '<span class="muted">Not selected</span>' : `<button class="participant-toggle secondary" data-id="${member.id}">Add</button>`)}</div></div>`;
+    }).join('') : '<div class="empty">Select members for this session.</div>';
+    const count = $('#attendance-count');
+    if (count) count.textContent = state.sessions[type] ? Object.keys(state.sessions[type].attendance).length : 0;
+  }
+
+  function renderSession(type) {
+    const session = state.sessions[type];
+    const label = $(`#${type}-session-label`);
+    if (label) label.innerHTML = session ? `${session.status === 'finished' ? '<span class="finished-badge">✓ Finished</span> ' : ''}${escapeHtml(session.title)}${session.date ? ` · ${escapeHtml(session.date)}` : ''}` : `No active ${type === 'war' ? 'war' : 'Capital'} session.`;
+    const workspace = $(`#${type}-workspace`);
+    if (workspace) workspace.classList.toggle('hidden', !session);
+    all(`.finish-session[data-type="${type}"], .save-session[data-type="${type}"], .select-all[data-type="${type}"], .deselect-all[data-type="${type}"]`).forEach((button) => {
+      button.disabled = Boolean(session && session.status === 'finished');
+    });
+    renderAttendance(type);
+  }
+
+  async function syncSession(type) {
+    const session = state.sessions[type];
+    if (!session || !session.id) return;
+    const attendance = state.members.map((member) => ({
+      memberId: member.id,
+      selected: session.members.includes(member.id),
+      status: session.attendance[member.id] || 'unmarked',
+      attacksUsed: Number(session.attacks[member.id] || 0)
+    }));
+    await api(`/sessions/${type}/${session.id}/attendance`, {
+      method: 'PUT',
+      body: JSON.stringify({ attendance })
+    });
+  }
+
+  async function loadSessionList(type) {
+    const result = await api(`/sessions/${type}`);
+    const select = $(`.session-select[data-type="${type}"]`);
+    state.sessionLists[type] = result.data;
+    renderHistory(type);
+    if (!select) return;
+    select.innerHTML = '<option value="">Choose a saved session...</option>' +
+      result.data.map((item) => `<option value="${item.id}">${item.status === 'finished' ? '✓ ' : ''}${escapeHtml(item.name)} · ${escapeHtml(item.date)} · ${escapeHtml(item.status)}</option>`).join('');
+  }
+
+  async function activateSession(type, id) {
+    if (!id) {
+      state.sessions[type] = null;
+      renderSession(type);
+      return;
+    }
+    const result = await api(`/sessions/${type}/${id}`);
+    const data = result.data;
+    state.sessions[type] = {
+      id: data.id,
+      title: data.name,
+      date: data.date,
+      status: data.status,
+      members: data.attendance.filter((item) => item.selected).map((item) => item.memberId),
+      attendance: Object.fromEntries(data.attendance.map((item) => [item.memberId, item.status])),
+      attacks: Object.fromEntries(data.attendance.map((item) => [item.memberId, item.attacksUsed]))
+    };
+    renderSession(type);
+  }
+
+  async function finishSession(type) {
+    const session = state.sessions[type];
+    if (!session) return showNotice('Choose or create a session first.', true);
+    try {
+      await syncSession(type);
+      await api(`/sessions/${type}/${session.id}/finish`, { method: 'POST' });
+      session.status = 'finished';
+      renderSession(type);
+      await loadSessionList(type);
+      showNotice('Session finished and saved to the database.');
+    } catch (error) {
+      showNotice(error.message, true);
+    }
+
+  }
+
+  async function saveSession(type) {
+    if (!state.sessions[type]) return showNotice('Choose or create a session first.', true);
+    try {
+      await syncSession(type);
+      showNotice('Session saved.');
+    } catch (error) {
+      showNotice(error.message, true);
+    }
+  }
+
+  async function deleteSession(type, sessionId) {
+      const session = state.sessions[type];
+      const id = sessionId || (session && session.id);
+      if (!id) return showNotice('Choose a session first.', true);
+      const saved = state.sessionLists[type].find((item) => item.id === id);
+      if (!window.confirm(`Delete "${saved ? saved.name : session.title}" permanently?`)) return;
+      try {
+        await api(`/sessions/${type}/${id}`, { method: 'DELETE' });
+        if (state.sessions[type] && state.sessions[type].id === id) {
+          state.sessions[type] = null;
+          renderSession(type);
+        }
+        await loadSessionList(type);
+        showNotice('Session deleted.');
+      } catch (error) {
+        showNotice(error.message, true);
+    }
+  }
+
+  function renderHistory(type) {
+    const target = $(`#${type}-history`);
+    if (!target) return;
+    const query = ($(`.history-search[data-type="${type}"]`) || {}).value || '';
+    const entries = state.sessionLists[type].filter((item) => `${item.name} ${item.date}`.toLowerCase().includes(query.toLowerCase()));
+    target.innerHTML = entries.length ? entries.map((item) => {
+      return `<div class="history-item"><strong>${item.status === 'finished' ? '<span class="finished-badge">✓ Finished</span> ' : ''}${escapeHtml(item.name)}</strong><small>${escapeHtml(item.date)} · ${escapeHtml(item.status)} <button type="button" class="secondary delete-history-session" data-type="${type}" data-id="${item.id}">Delete</button></small></div>`;
+    }).join('') : '<div class="empty">No saved sessions found.</div>';
   }
 
   async function loadSettings() {
@@ -84,15 +247,109 @@
   function bindDashboard() {
     if (!$('#member-form')) return;
     setAuthState();
+    bindTabs();
+    all('.session-date').forEach((input) => {
+      input.addEventListener('click', () => {
+        if (typeof input.showPicker === 'function') input.showPicker();
+      });
+    });
+    ['war', 'capital'].forEach((type) => {
+      const form = $(`#${type}-session-form`);
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const data = formObject(event.target);
+          if (!data.date || !data.title.trim()) return showNotice('Session title and date are required.', true);
+          api(`/sessions/${type}`, {
+            method: 'POST',
+            body: JSON.stringify({ name: data.title.trim(), date: data.date })
+          }).then(async (result) => {
+            form.classList.add('hidden');
+            await loadSessionList(type);
+            const select = $(`.session-select[data-type="${type}"]`);
+            select.value = result.data.id;
+            await activateSession(type, result.data.id);
+          }).catch((error) => showNotice(error.message, true));
+      });
+      const grid = type === 'war' ? $('#attendance-grid') : $('#capital-attendance-grid');
+      grid.addEventListener('click', (event) => {
+        if (event.target.matches('.participant-toggle')) {
+          const session = state.sessions[type];
+          if (session) session.members.push(Number(event.target.dataset.id));
+          syncSession(type).catch((error) => showNotice(error.message, true));
+          renderAttendance(type);
+          return;
+        }
+        if (!event.target.matches('.attendance-toggle')) return;
+        const session = state.sessions[type];
+        session.attendance[event.target.dataset.id] = event.target.dataset.status;
+        if (event.target.dataset.status === 'present') {
+          session.attacks[event.target.dataset.id] = type === 'war' ? 2 : 6;
+        }
+        syncSession(type).catch((error) => showNotice(error.message, true));
+        renderAttendance(type);
+      });
+      grid.addEventListener('change', (event) => {
+        if (!event.target.matches('.attacks-input')) return;
+        const session = state.sessions[type];
+        if (!session) return;
+        const maxAttacks = type === 'war' ? 2 : 6;
+        const attacks = Number(event.target.value);
+        if (!Number.isInteger(attacks) || attacks < 0 || attacks > maxAttacks) {
+          showNotice(`Attacks must be between 0 and ${maxAttacks}.`, true);
+          renderAttendance(type);
+          return;
+        }
+        session.attacks[event.target.dataset.id] = attacks;
+        syncSession(type).catch((error) => showNotice(error.message, true));
+      });
+    });
+    all('.select-all').forEach((button) => button.addEventListener('click', () => { const session = state.sessions[button.dataset.type]; if (!session) return showNotice('Choose or create a session first.', true); session.members = state.members.map((member) => member.id); syncSession(button.dataset.type).catch((error) => showNotice(error.message, true)); renderAttendance(button.dataset.type); }));
+    all('.deselect-all').forEach((button) => button.addEventListener('click', () => { const session = state.sessions[button.dataset.type]; if (!session) return; session.members = []; syncSession(button.dataset.type).catch((error) => showNotice(error.message, true)); renderAttendance(button.dataset.type); }));
+    all('.finish-session').forEach((button) => button.addEventListener('click', () => finishSession(button.dataset.type)));
+    all('.save-session').forEach((button) => button.addEventListener('click', () => saveSession(button.dataset.type)));
+    all('.sort-status').forEach((button) => button.addEventListener('click', () => {
+      const type = button.dataset.type;
+      const sortState = state.sort[type];
+      if (sortState.mode === 'status') sortState.descending = !sortState.descending;
+      sortState.mode = 'status';
+      button.textContent = `Status: ${sortState.descending ? 'present first' : 'absent first'}`;
+      renderAttendance(type);
+    }));
+    all('.sort-attacks').forEach((button) => button.addEventListener('click', () => {
+      const type = button.dataset.type;
+      const sortState = state.sort[type];
+      if (sortState.mode === 'attacks') sortState.descending = !sortState.descending;
+      sortState.mode = 'attacks';
+      button.textContent = `Attacks: ${sortState.descending ? 'high to low' : 'low to high'}`;
+      renderAttendance(type);
+    }));
+    all('.delete-session').forEach((button) => button.addEventListener('click', () => deleteSession(button.dataset.type)));
+    all('.create-session').forEach((button) => button.addEventListener('click', () => {
+      $(`#${button.dataset.type}-session-form`).classList.remove('hidden');
+    }));
+    all('.session-select').forEach((select) => select.addEventListener('change', () => activateSession(select.dataset.type, select.value).catch((error) => showNotice(error.message, true))));
+    all('.history-search').forEach((input) => input.addEventListener('input', () => renderHistory(input.dataset.type)));
+    all('.history-block').forEach((block) => block.addEventListener('click', (event) => {
+      if (!event.target.matches('.delete-history-session')) return;
+      deleteSession(event.target.dataset.type, Number(event.target.dataset.id));
+    }));
+    renderHistory('war'); renderHistory('capital');
     loadSettings().catch((error) => showNotice(error.message, true));
-    if (state.token) Promise.all([loadMembers(), loadActivity()]).catch((error) => showNotice(error.message, true));
+    if (state.token) Promise.all([loadMembers(), loadActivity(), loadSessionList('war'), loadSessionList('capital')]).catch((error) => showNotice(error.message, true));
     $('#logout-button').addEventListener('click', async () => {
       try { await api('/auth/logout', { method: 'POST' }); } catch (error) { showNotice(error.message, true); }
       state.token = null; localStorage.removeItem(tokenKey); setAuthState(); showNotice('Logged out.');
     });
     $('#member-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      try { await api('/members', { method: 'POST', body: JSON.stringify(formObject(event.target)) }); event.target.reset(); await loadMembers(); showNotice('Member added.'); } catch (error) { showNotice(error.message, true); }
+      try {
+        const data = formObject(event.target);
+        data.playerTag = data.playerTag.trim() || 'N/A';
+        await api('/members', { method: 'POST', body: JSON.stringify(data) });
+        event.target.reset();
+        await loadMembers();
+        showNotice('Member added.');
+      } catch (error) { showNotice(error.message, true); }
     });
     $('#member-list').addEventListener('click', async (event) => {
       if (event.target.matches('.edit-member')) {
@@ -100,12 +357,22 @@
         if (!member) return;
         const playerName = window.prompt('Player name', member.playerName);
         if (playerName === null) return;
+        const playerTag = window.prompt('Player tag (leave blank for N/A)', member.playerTag || 'N/A');
+        if (playerTag === null) return;
         const townHallLevel = window.prompt('Town Hall level (1-18)', member.townHallLevel);
         if (townHallLevel === null) return;
         const role = window.prompt('Role (leader, co-leader, elder, member)', member.role);
         if (role === null) return;
         try {
-          await api(`/members/${member.id}`, { method: 'PATCH', body: JSON.stringify({ playerName, townHallLevel: Number(townHallLevel), role }) });
+          await api(`/members/${member.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              playerName,
+              playerTag: playerTag.trim() || 'N/A',
+              townHallLevel: Number(townHallLevel),
+              role
+            })
+          });
           await loadMembers();
           showNotice('Member updated.');
         } catch (error) { showNotice(error.message, true); }
@@ -114,7 +381,8 @@
       if (!event.target.matches('.delete-member') || !window.confirm('Remove this member and their logs?')) return;
       try { await api(`/members/${event.target.dataset.id}`, { method: 'DELETE' }); await Promise.all([loadMembers(), loadActivity()]); showNotice('Member removed.'); } catch (error) { showNotice(error.message, true); }
     });
-    $('#war-form').addEventListener('submit', async (event) => {
+    const warForm = $('#war-form');
+    if (warForm) warForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const data = formObject(event.target);
       data.memberId = Number(data.memberId);
@@ -122,7 +390,8 @@
       data.missedAttack = event.target.missedAttack.checked;
       try { await api('/wars', { method: 'POST', body: JSON.stringify(data) }); await loadActivity(); showNotice('War activity saved.'); } catch (error) { showNotice(error.message, true); }
     });
-    $('#capital-form').addEventListener('submit', async (event) => {
+    const capitalForm = $('#capital-form');
+    if (capitalForm) capitalForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const data = formObject(event.target);
       data.memberId = Number(data.memberId);
@@ -130,8 +399,10 @@
       data.capitalGoldLooted = Number(data.capitalGoldLooted);
       try { await api('/capital', { method: 'POST', body: JSON.stringify(data) }); await loadActivity(); showNotice('Capital activity saved.'); } catch (error) { showNotice(error.message, true); }
     });
-    $('#war-list').addEventListener('click', (event) => deleteActivity(event, 'delete-war', '/wars'));
-    $('#capital-list').addEventListener('click', (event) => deleteActivity(event, 'delete-capital', '/capital'));
+    const warList = $('#war-list');
+    if (warList) warList.addEventListener('click', (event) => deleteActivity(event, 'delete-war', '/wars'));
+    const capitalList = $('#capital-list');
+    if (capitalList) capitalList.addEventListener('click', (event) => deleteActivity(event, 'delete-capital', '/capital'));
     $('#settings-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const value = event.target.bgImageUrl.value.trim();
@@ -147,23 +418,5 @@
     try { await api(`${path}/${event.target.dataset.id}`, { method: 'DELETE' }); await loadActivity(); showNotice('Activity deleted.'); } catch (error) { showNotice(error.message, true); }
   }
 
-  function bindLogin() {
-    const login = $('#login-form');
-    if (!login) return;
-    $('#register-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try { const result = await api('/auth/register', { method: 'POST', body: JSON.stringify(formObject(event.target)) }); showNotice(`Confirmation code (simulated email): ${result.simulatedEmail.code}`); } catch (error) { showNotice(error.message, true); }
-    });
-    $('#confirm-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try { await api('/auth/confirm', { method: 'POST', body: JSON.stringify(formObject(event.target)) }); showNotice('Email confirmed. You can now log in.'); } catch (error) { showNotice(error.message, true); }
-    });
-    login.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try { const result = await api('/auth/login', { method: 'POST', body: JSON.stringify(formObject(event.target)) }); state.token = result.data.token; localStorage.setItem(tokenKey, state.token); window.location.href = '/'; } catch (error) { showNotice(error.message, true); }
-    });
-  }
-
-  bindLogin();
   bindDashboard();
 }());

@@ -99,6 +99,8 @@ Authorization: Bearer <token>
 | --- | --- | --- |
 | `POST` | `/api/auth/register` | Register an admin account |
 | `POST` | `/api/auth/confirm` | Confirm the simulated email code |
+| `POST` | `/api/auth/forgot-password` | Generate a simulated password-reset code |
+| `POST` | `/api/auth/reset-password` | Set a new password using the reset code |
 | `POST` | `/api/auth/login` | Log in and receive a token |
 | `GET` | `/api/auth/me` | Return the current admin |
 | `POST` | `/api/auth/logout` | Invalidate the current token |
@@ -122,6 +124,15 @@ Member fields:
   "role": "member"
 }
 ```
+
+### Persistent sessions
+
+War and Clan Capital sessions are stored in MySQL and require a name and date.
+Use `/api/sessions/war` or `/api/sessions/capital` to create/list sessions,
+`GET /api/sessions/:type/:id` to load a roster, `PUT
+/api/sessions/:type/:id/attendance` to save selection, status, and attack
+counts, and `POST /api/sessions/:type/:id/finish` to finish a session. War
+attendance accepts 0-2 attacks per member; Capital accepts 0-6.
 
 Valid roles are `leader`, `co-leader`, `elder`, and `member`.
 

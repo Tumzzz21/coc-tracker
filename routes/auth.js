@@ -5,15 +5,11 @@ const pool = require('../config/db');
 
 const router = express.Router();
 const tokens = new Map();
+const passwordResetCodes = new Map();
 const tokenLifetimeMs = 8 * 60 * 60 * 1000;
 const confirmationLifetimeMs =
   Number(process.env.CONFIRMATION_CODE_EXPIRY_MINUTES || 30) * 60 * 1000;
-
-function fail(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
+const resetCodeLifetimeMs = confirmationLifetimeMs;
 
 function emailValue(value) {
   if (typeof value !== 'string') return null;
@@ -108,6 +104,59 @@ router.post('/confirm', async (req, res, next) => {
   }
 });
 
+// Generate a simulated reset code for an existing admin account.
+router.post('/forgot-password', async (req, res, next) => {
+  const email = emailValue(req.body && req.body.email);
+  if (!email) return res.status(400).json({ error: 'A valid email is required.' });
+
+  try {
+    const [rows] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
+    if (!rows.length) return res.status(404).json({ error: 'User does not exist' });
+
+    const code = String(crypto.randomInt(100000, 1000000));
+    const expiresAt = Date.now() + resetCodeLifetimeMs;
+    passwordResetCodes.set(email, { code, expiresAt });
+    res.json({
+      message: 'A password reset code was generated.',
+      simulatedEmail: { subject: 'Clan tracker password reset', code, expiresAt: new Date(expiresAt).toISOString() }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Verify the simulated reset code and replace the stored bcrypt password hash.
+router.post('/reset-password', async (req, res, next) => {
+  const email = emailValue(req.body && req.body.email);
+  const code = typeof (req.body && req.body.code) === 'string' ? req.body.code.trim() : '';
+  const password = passwordValue(req.body && req.body.password);
+  if (!email || !/^\d{6}$/.test(code) || !password) {
+    return res.status(400).json({ error: 'Email, six-digit code, and an 8-128 character password are required.' });
+  }
+  if (password !== (req.body && req.body.confirmPassword)) {
+    return res.status(400).json({ error: 'Password and confirmation password must match.' });
+  }
+
+  const reset = passwordResetCodes.get(email);
+  if (!reset || reset.expiresAt <= Date.now() || reset.code !== code) {
+    if (reset && reset.expiresAt <= Date.now()) passwordResetCodes.delete(email);
+    return res.status(400).json({ error: 'The password reset code is invalid or expired.' });
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const [result] = await pool.execute(
+      'UPDATE users SET password_hash = ?, is_confirmed = TRUE WHERE email = ?',
+      [passwordHash, email]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: 'User does not exist' });
+    passwordResetCodes.delete(email);
+    res.json({ message: 'Password reset successfully. You can now log in.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/login', async (req, res, next) => {
   const email = emailValue(req.body && req.body.email);
   const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
@@ -118,8 +167,18 @@ router.post('/login', async (req, res, next) => {
       'SELECT id, email, password_hash AS passwordHash, is_confirmed AS isConfirmed FROM users WHERE email = ?',
       [email]
     );
-    if (!rows.length || !(await bcrypt.compare(password, rows[0].passwordHash))) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+    if (!rows.length) {
+      return res.status(404).json({ error: 'User does not exist' });
+    }
+
+    let passwordMatches = false;
+    try {
+      passwordMatches = await bcrypt.compare(password, rows[0].passwordHash);
+    } catch (error) {
+      console.error('Password comparison failed:', error);
+    }
+    if (!passwordMatches) {
+      return res.status(401).json({ error: 'Incorrect password' });
     }
     if (!rows[0].isConfirmed) {
       return res.status(403).json({ error: 'Confirm the simulated email before logging in.' });

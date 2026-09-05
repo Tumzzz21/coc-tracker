@@ -8,52 +8,91 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">⚔ Clan Activity Tracker</a>
-    <nav><a href="#roster">Roster</a><a href="#wars">Wars</a><a href="#capital">Capital</a></nav>
+    <a class="brand" href="#home"><span class="brand-mark" aria-hidden="true">⚔</span> Clan Activity Tracker</a>
+    <nav class="tab-nav" aria-label="Main navigation">
+      <button class="tab-button active" data-tab="home">Home</button>
+      <button class="tab-button" data-tab="members">Clan Members</button>
+      <button class="tab-button" data-tab="war">Clan War</button>
+      <button class="tab-button" data-tab="capital">Clan Capital</button>
+    </nav>
     <div class="auth-actions"><span id="user-label"></span><a id="login-link" href="/login.html">Admin login</a><button id="logout-button" class="secondary hidden">Log out</button></div>
   </header>
+
   <main class="container">
-    <section class="hero">
-      <div><p class="eyebrow">CLAN OPERATIONS</p><h1>Keep every attack countable.</h1><p>One clear view of your member activity across war and the Clan Capital raid weekend.</p></div>
-      <div id="auth-banner" class="banner">Log in to manage activity.</div>
-    </section>
     <div id="notice" class="notice" role="status"></div>
-    <section id="roster" class="panel">
-      <div class="section-heading"><div><p class="eyebrow">MEMBERS</p><h2>Clan roster</h2></div><span id="member-count" class="pill">0 members</span></div>
-      <form id="member-form" class="form-grid auth-required">
-        <label>Player tag <input name="playerTag" placeholder="#ABC123" maxlength="15" required></label>
-        <label>Player name <input name="playerName" maxlength="100" required></label>
-        <label>Town Hall <input name="townHallLevel" type="number" min="1" max="18" required></label>
-        <label>Role <select name="role"><option>member</option><option>elder</option><option>co-leader</option><option>leader</option></select></label>
-        <button type="submit">Add member</button>
-      </form>
-      <div id="member-list" class="table-wrap"></div>
+
+    <section id="tab-home" class="tab-panel active" data-panel="home">
+      <section class="hero">
+        <div><p class="eyebrow">CLAN OPERATIONS</p><h1>Keep every attack countable.</h1><p>Track your roster, war attendance, and Clan Capital activity from one command center.</p></div>
+        <div id="auth-banner" class="banner">Log in to manage activity.</div>
+      </section>
+      <div class="stats-grid">
+        <article class="stat-card"><span class="stat-label">Clan members</span><strong id="member-count">0</strong></article>
+        <article class="stat-card"><span class="stat-label">Attendance marked</span><strong id="attendance-count">0</strong></article>
+        <article class="stat-card"><span class="stat-label">War logs</span><strong id="war-count">0</strong></article>
+      </div>
+      <section class="panel auth-required">
+        <div class="section-heading"><div><p class="eyebrow">PERSONALIZE</p><h2>Background customizer</h2></div></div>
+        <form id="settings-form" class="inline-form"><label>Image URL <input name="bgImageUrl" type="url" placeholder="https://example.com/clan.jpg"></label><button type="submit">Apply background</button><button id="clear-background" type="button" class="secondary">Clear</button></form>
+      </section>
     </section>
-    <div class="two-col">
-      <section id="wars" class="panel">
-        <div class="section-heading"><div><p class="eyebrow">WAR LOG</p><h2>War attacks</h2></div></div>
-        <form id="war-form" class="stack auth-required">
-          <label>Member <select name="memberId" class="member-options" required></select></label>
-          <label>War date <input name="warDate" type="date" required></label>
-          <div class="form-grid"><label>Attacks used <input name="attacksUsed" type="number" min="0" max="2" value="2" required></label><label class="check"><input name="missedAttack" type="checkbox"> Missed attack</label></div>
-          <button type="submit">Save war activity</button>
+
+    <section id="tab-members" class="tab-panel" data-panel="members">
+      <section class="panel">
+        <div class="section-heading"><div><p class="eyebrow">ROSTER MANAGEMENT</p><h2>Clan members</h2></div><span id="member-count-panel" class="pill">0 members</span></div>
+        <form id="member-form" class="form-grid auth-required">
+          <label>Member name <input name="playerName" maxlength="100" required></label>
+          <label>Player tag <input name="playerTag" placeholder="#2PR8R28V (optional)" maxlength="15"></label>
+          <label>Town Hall <input name="townHallLevel" type="number" min="1" max="18" value="1" required></label>
+          <label>Role <select name="role"><option value="member">Member</option><option value="elder">Elder</option><option value="co-leader">Co-Leader</option><option value="leader">Leader</option></select></label>
+          <button type="submit">Add member</button>
         </form>
-        <div id="war-list" class="activity-list"></div>
+        <div id="member-list" class="table-wrap"></div>
       </section>
-      <section id="capital" class="panel">
-        <div class="section-heading"><div><p class="eyebrow">RAID WEEKEND</p><h2>Clan Capital</h2></div></div>
-        <form id="capital-form" class="stack auth-required">
-          <label>Member <select name="memberId" class="member-options" required></select></label>
-          <label>Raid weekend date <input name="raidWeekendDate" type="date" required></label>
-          <div class="form-grid"><label>Attacks used <input name="attacksUsed" type="number" min="0" max="6" value="6" required></label><label>Capital gold <input name="capitalGoldLooted" type="number" min="0" value="0" required></label></div>
-          <button type="submit">Save Capital activity</button>
+    </section>
+
+    <section id="tab-war" class="tab-panel" data-panel="war">
+      <section class="panel">
+        <div class="section-heading"><div><p class="eyebrow">WAR ATTENDANCE</p><h2>Clan war session</h2><p class="muted">Each member can use up to 2 attacks. Enter the number already used for each participant.</p></div></div>
+        <div class="session-first auth-required" id="war-session-picker">
+          <label>Saved war sessions <select class="session-select" data-type="war"><option value="">Choose a saved session...</option></select></label>
+          <button type="button" class="secondary create-session" data-type="war">Create new session</button>
+        </div>
+        <form id="war-session-form" class="session-form auth-required hidden">
+          <input class="session-date" name="date" type="date" aria-label="War session date">
+          <input name="title" placeholder="Session title, e.g. War vs Clan X" maxlength="100" aria-label="War session title">
+          <button type="submit">Create session</button>
         </form>
-        <div id="capital-list" class="activity-list"></div>
+        <div id="war-workspace" class="session-workspace hidden">
+          <div class="bulk-actions auth-required"><button type="button" class="secondary select-all" data-type="war">Select all</button><button type="button" class="secondary deselect-all" data-type="war">Deselect all</button><button type="button" class="secondary save-session" data-type="war">Save session</button><button type="button" class="finish-session" data-type="war">Finish session</button><button type="button" class="secondary delete-session" data-type="war">Delete session</button></div>
+          <div class="sort-actions auth-required"><span>Sort roster:</span><button type="button" class="secondary sort-status" data-type="war">Status: present first</button><button type="button" class="secondary sort-attacks" data-type="war">Attacks: high to low</button></div>
+          <div id="war-session-label" class="session-label">No active war session.</div>
+          <div id="attendance-grid" class="attendance-grid"></div>
+        </div>
+        <div class="history-block"><h3>Past wars</h3><input class="history-search" data-type="war" placeholder="Search war history"><div id="war-history"></div></div>
       </section>
-    </div>
-    <section class="panel auth-required">
-      <div class="section-heading"><div><p class="eyebrow">PERSONALIZE</p><h2>Background customizer</h2></div></div>
-      <form id="settings-form" class="inline-form"><label>Image URL <input name="bgImageUrl" type="url" placeholder="https://example.com/clan.jpg"></label><button type="submit">Apply background</button><button id="clear-background" type="button" class="secondary">Clear</button></form>
+    </section>
+
+    <section id="tab-capital" class="tab-panel" data-panel="capital">
+      <section class="panel">
+        <div class="section-heading"><div><p class="eyebrow">CAPITAL PARTICIPATION</p><h2>Clan Capital session</h2><p class="muted">Each member can use up to 6 attacks. Enter 5 or 6 as applicable for the raid weekend.</p></div></div>
+        <div class="session-first auth-required" id="capital-session-picker">
+          <label>Saved Capital sessions <select class="session-select" data-type="capital"><option value="">Choose a saved session...</option></select></label>
+          <button type="button" class="secondary create-session" data-type="capital">Create new session</button>
+        </div>
+        <form id="capital-session-form" class="session-form auth-required hidden">
+          <input class="session-date" name="date" type="date" aria-label="Capital session date">
+          <input name="title" placeholder="Session title, e.g. Raid Weekend" maxlength="100" aria-label="Capital session title">
+          <button type="submit">Create session</button>
+        </form>
+        <div id="capital-workspace" class="session-workspace hidden">
+          <div class="bulk-actions auth-required"><button type="button" class="secondary select-all" data-type="capital">Select all</button><button type="button" class="secondary deselect-all" data-type="capital">Deselect all</button><button type="button" class="secondary save-session" data-type="capital">Save session</button><button type="button" class="finish-session" data-type="capital">Finish session</button><button type="button" class="secondary delete-session" data-type="capital">Delete session</button></div>
+          <div class="sort-actions auth-required"><span>Sort roster:</span><button type="button" class="secondary sort-status" data-type="capital">Status: present first</button><button type="button" class="secondary sort-attacks" data-type="capital">Attacks: high to low</button></div>
+          <div id="capital-session-label" class="session-label">No active Capital session.</div>
+          <div id="capital-attendance-grid" class="attendance-grid"></div>
+        </div>
+        <div class="history-block"><h3>Past Capital raids</h3><input class="history-search" data-type="capital" placeholder="Search Capital history"><div id="capital-history"></div></div>
+      </section>
     </section>
   </main>
   <script src="/js/main.js"></script>

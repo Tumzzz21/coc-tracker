@@ -14,14 +14,48 @@
     <div id="notice" class="notice" role="status"></div>
     <form id="login-form" class="stack">
       <label>Email <input name="email" type="email" autocomplete="email" required></label>
-      <label>Password <input name="password" type="password" minlength="8" autocomplete="current-password" required></label>
+      <label>Password
+        <span class="password-field">
+          <input name="password" type="password" minlength="8" autocomplete="current-password" required>
+          <button type="button" class="password-toggle secondary" aria-controls="login-password" aria-label="Show password">Show</button>
+        </span>
+      </label>
       <button type="submit">Log in</button>
     </form>
+    <details class="password-help">
+      <summary>Forgot password?</summary>
+      <form id="forgot-form" class="stack compact">
+        <label>Account email <input name="email" type="email" autocomplete="email" required></label>
+        <button type="submit" class="secondary">Send reset code</button>
+      </form>
+      <form id="reset-form" class="stack compact">
+        <label>Reset email <input name="email" type="email" required></label>
+        <label>6-digit reset code <input name="code" inputmode="numeric" pattern="[0-9]{6}" required></label>
+        <label>New password
+          <span class="password-field">
+            <input name="password" type="password" minlength="8" autocomplete="new-password" required>
+            <button type="button" class="password-toggle secondary" aria-label="Show password">Show</button>
+          </span>
+        </label>
+        <label>Confirm new password
+          <span class="password-field">
+            <input name="confirmPassword" type="password" minlength="8" autocomplete="new-password" required>
+            <button type="button" class="password-toggle secondary" aria-label="Show password">Show</button>
+          </span>
+        </label>
+        <button type="submit" class="secondary">Reset password</button>
+      </form>
+    </details>
     <details>
       <summary>First time here?</summary>
       <form id="register-form" class="stack compact">
         <label>Email <input name="email" type="email" required></label>
-        <label>Password <input name="password" type="password" minlength="8" required></label>
+        <label>Password
+          <span class="password-field">
+            <input name="password" type="password" minlength="8" autocomplete="new-password" required>
+            <button type="button" class="password-toggle secondary" aria-label="Show password">Show</button>
+          </span>
+        </label>
         <button type="submit" class="secondary">Register admin</button>
       </form>
       <form id="confirm-form" class="stack compact">
@@ -32,6 +66,6 @@
     </details>
     <p><a href="/">Back to tracker</a></p>
   </main>
-  <script src="/js/main.js"></script>
+  <script src="/js/auth.js"></script>
 </body>
 </html>

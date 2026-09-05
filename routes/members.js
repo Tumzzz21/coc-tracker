@@ -4,15 +4,39 @@ const { requireAuth } = require('./auth');
 
 const router = express.Router();
 const roles = new Set(['leader', 'co-leader', 'elder', 'member']);
-const tagPattern = /^#[A-Z0-9]{3,12}$/;
+const tagPattern = /^(?:N\/A|#[A-Z0-9]{3,12})$/;
+let tagIndexReady;
+
+async function removeTagUniqueIndex() {
+  if (!tagIndexReady) {
+    tagIndexReady = (async () => {
+      const [indexes] = await pool.execute(
+        `SELECT COUNT(*) AS count
+         FROM information_schema.statistics
+         WHERE table_schema = DATABASE()
+           AND table_name = 'members'
+           AND index_name = 'uq_members_player_tag'`
+      );
+      if (indexes[0].count) {
+        await pool.execute('ALTER TABLE members DROP INDEX uq_members_player_tag');
+      }
+    })().catch((error) => {
+      tagIndexReady = null;
+      throw error;
+    });
+  }
+  return tagIndexReady;
+}
 
 function validateMember(body, partial = false) {
   const values = {};
   if (!partial || body.playerTag !== undefined) {
-    if (typeof body.playerTag !== 'string' || !tagPattern.test(body.playerTag.trim().toUpperCase())) {
+    const tag = typeof body.playerTag === 'string' ? body.playerTag.trim().toUpperCase() || 'N/A' : 'N/A';
+    if (!tagPattern.test(tag)) {
       return { error: 'playerTag must look like #ABC123.' };
+    } else {
+      values.playerTag = tag;
     }
-    values.playerTag = body.playerTag.trim().toUpperCase();
   }
   if (!partial || body.playerName !== undefined) {
     if (typeof body.playerName !== 'string' || body.playerName.trim().length < 1 || body.playerName.trim().length > 100) {
@@ -37,6 +61,9 @@ function validateMember(body, partial = false) {
 }
 
 router.use(requireAuth);
+router.use((req, res, next) => {
+  removeTagUniqueIndex().then(() => next()).catch(next);
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -56,6 +83,10 @@ router.post('/', async (req, res, next) => {
   if (result.error) return res.status(400).json({ error: result.error });
   const { playerTag, playerName, townHallLevel, role } = result.values;
   try {
+    if (playerTag !== 'N/A') {
+      const [duplicates] = await pool.execute('SELECT id FROM members WHERE player_tag = ?', [playerTag]);
+      if (duplicates.length) return res.status(409).json({ error: 'That player tag is already in the roster.' });
+    }
     const [insert] = await pool.execute(
       'INSERT INTO members (player_tag, player_name, town_hall_level, role) VALUES (?, ?, ?, ?)',
       [playerTag, playerName, townHallLevel, role]
@@ -80,6 +111,13 @@ async function updateMember(req, res, next) {
   const columns = { playerTag: 'player_tag', playerName: 'player_name', townHallLevel: 'town_hall_level', role: 'role' };
   const assignments = keys.map((key) => `${columns[key]} = ?`).join(', ');
   try {
+    if (result.values.playerTag && result.values.playerTag !== 'N/A') {
+      const [duplicates] = await pool.execute(
+        'SELECT id FROM members WHERE player_tag = ? AND id <> ?',
+        [result.values.playerTag, id]
+      );
+      if (duplicates.length) return res.status(409).json({ error: 'That player tag is already in the roster.' });
+    }
     const [update] = await pool.execute(
       `UPDATE members SET ${assignments} WHERE id = ?`,
       [...keys.map((key) => result.values[key]), id]
