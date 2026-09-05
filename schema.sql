@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS members (
   town_hall_level TINYINT UNSIGNED NOT NULL,
   role ENUM('leader', 'co-leader', 'elder', 'member') NOT NULL DEFAULT 'member',
   PRIMARY KEY (id),
-  UNIQUE KEY uq_members_player_tag (player_tag),
   CONSTRAINT chk_members_town_hall_level
     CHECK (town_hall_level BETWEEN 1 AND 18)
 ) ENGINE=InnoDB;

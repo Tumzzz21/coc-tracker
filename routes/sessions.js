@@ -228,5 +228,19 @@ router.post('/:type/:id/finish', async (req, res, next) => {
   }
 });
 
+router.delete('/:type/:id', async (req, res, next) => {
+  const selected = getConfig(req.params.type);
+  const id = positiveId(req.params.id);
+  if (!selected) return res.status(404).json({ error: 'Unknown session type.' });
+  if (!id) return res.status(400).json({ error: 'Session id must be positive.' });
+  try {
+    const [result] = await pool.execute(`DELETE FROM ${selected.sessions} WHERE id = ?`, [id]);
+    if (!result.affectedRows) return res.status(404).json({ error: 'Session not found.' });
+    res.json({ message: 'Session deleted.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
 module.exports.initializeSessionTables = initializeSessionTables;
