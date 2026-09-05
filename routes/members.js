@@ -4,17 +4,16 @@ const { requireAuth } = require('./auth');
 
 const router = express.Router();
 const roles = new Set(['leader', 'co-leader', 'elder', 'member']);
-const tagPattern = /^#[A-Z0-9]{3,12}$/;
+const tagPattern = /^(?:N\/A|#[A-Z0-9]{3,12})$/;
 
 function validateMember(body, partial = false) {
   const values = {};
   if (!partial || body.playerTag !== undefined) {
-    if (body.playerTag === '' || body.playerTag === null) {
-      values.playerTag = null;
-    } else if (typeof body.playerTag !== 'string' || !tagPattern.test(body.playerTag.trim().toUpperCase())) {
+    const tag = typeof body.playerTag === 'string' ? body.playerTag.trim().toUpperCase() || 'N/A' : 'N/A';
+    if (!tagPattern.test(tag)) {
       return { error: 'playerTag must look like #ABC123.' };
     } else {
-      values.playerTag = body.playerTag.trim().toUpperCase();
+      values.playerTag = tag;
     }
   }
   if (!partial || body.playerName !== undefined) {

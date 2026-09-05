@@ -114,18 +114,64 @@
     const session = state.sessions[type];
     const label = $(`#${type}-session-label`);
     if (label) label.textContent = session ? `${session.title}${session.date ? ` · ${session.date}` : ''}` : `No active ${type === 'war' ? 'war' : 'Capital'} session.`;
+    const workspace = $(`#${type}-workspace`);
+    if (workspace) workspace.classList.toggle('hidden', !session);
     renderAttendance(type);
   }
 
-  function finishSession(type) {
+  async function syncSession(type) {
     const session = state.sessions[type];
-    if (!session) return showNotice('Create a session first.', true);
-    state.history[type].unshift({ ...session, id: Date.now(), savedAt: new Date().toISOString() });
-    localStorage.setItem('cocSessionHistory', JSON.stringify(state.history));
-    state.sessions[type] = null;
+    if (!session || !session.id) return;
+    const attendance = state.members.map((member) => ({
+      memberId: member.id,
+      selected: session.members.includes(member.id),
+      status: session.attendance[member.id] || 'unmarked',
+      attacksUsed: Number(session.attacks[member.id] || 0)
+    }));
+    await api(`/sessions/${type}/${session.id}/attendance`, {
+      method: 'PUT',
+      body: JSON.stringify({ attendance })
+    });
+  }
+
+  async function loadSessionList(type) {
+    const result = await api(`/sessions/${type}`);
+    const select = $(`.session-select[data-type="${type}"]`);
+    if (!select) return;
+    select.innerHTML = '<option value="">Choose a saved session...</option>' +
+      result.data.map((item) => `<option value="${item.id}">${escapeHtml(item.name)} · ${escapeHtml(item.date)} · ${escapeHtml(item.status)}</option>`).join('');
+  }
+
+  async function activateSession(type, id) {
+    if (!id) {
+      state.sessions[type] = null;
+      renderSession(type);
+      return;
+    }
+    const result = await api(`/sessions/${type}/${id}`);
+    const data = result.data;
+    state.sessions[type] = {
+      id: data.id,
+      title: data.name,
+      date: data.date,
+      members: data.attendance.filter((item) => item.selected).map((item) => item.memberId),
+      attendance: Object.fromEntries(data.attendance.map((item) => [item.memberId, item.status])),
+      attacks: Object.fromEntries(data.attendance.map((item) => [item.memberId, item.attacksUsed]))
+    };
     renderSession(type);
-    renderHistory(type);
-    showNotice('Session saved to history.');
+  }
+
+  async function finishSession(type) {
+    const session = state.sessions[type];
+    if (!session) return showNotice('Choose or create a session first.', true);
+    try {
+      await syncSession(type);
+      await api(`/sessions/${type}/${session.id}/finish`, { method: 'POST' });
+      await loadSessionList(type);
+      showNotice('Session saved to the database.');
+    } catch (error) {
+      showNotice(error.message, true);
+    }
   }
 
   function renderHistory(type) {
@@ -163,24 +209,31 @@
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const data = formObject(event.target);
-        if (!data.date && !data.title.trim()) {
-          showNotice('Enter a session date or title first.', true);
-          return;
-        }
-          state.sessions[type] = { date: data.date, title: data.title || (type === 'war' ? 'Clan War' : 'Clan Capital'), members: [], attendance: {}, attacks: {} };
-        renderSession(type);
+          if (!data.date || !data.title.trim()) return showNotice('Session title and date are required.', true);
+          api(`/sessions/${type}`, {
+            method: 'POST',
+            body: JSON.stringify({ name: data.title.trim(), date: data.date })
+          }).then(async (result) => {
+            form.classList.add('hidden');
+            await loadSessionList(type);
+            const select = $(`.session-select[data-type="${type}"]`);
+            select.value = result.data.id;
+            await activateSession(type, result.data.id);
+          }).catch((error) => showNotice(error.message, true));
       });
       const grid = type === 'war' ? $('#attendance-grid') : $('#capital-attendance-grid');
       grid.addEventListener('click', (event) => {
         if (event.target.matches('.participant-toggle')) {
           const session = state.sessions[type];
           if (session) session.members.push(Number(event.target.dataset.id));
+          syncSession(type).catch((error) => showNotice(error.message, true));
           renderAttendance(type);
           return;
         }
         if (!event.target.matches('.attendance-toggle')) return;
         const session = state.sessions[type];
         session.attendance[event.target.dataset.id] = event.target.dataset.status;
+        syncSession(type).catch((error) => showNotice(error.message, true));
         renderAttendance(type);
       });
       grid.addEventListener('change', (event) => {
@@ -195,22 +248,34 @@
           return;
         }
         session.attacks[event.target.dataset.id] = attacks;
+        syncSession(type).catch((error) => showNotice(error.message, true));
       });
     });
-    all('.select-all').forEach((button) => button.addEventListener('click', () => { const session = state.sessions[button.dataset.type]; if (!session) return showNotice('Create a session first.', true); session.members = state.members.map((member) => member.id); renderAttendance(button.dataset.type); }));
-    all('.deselect-all').forEach((button) => button.addEventListener('click', () => { const session = state.sessions[button.dataset.type]; if (!session) return; session.members = []; renderAttendance(button.dataset.type); }));
+    all('.select-all').forEach((button) => button.addEventListener('click', () => { const session = state.sessions[button.dataset.type]; if (!session) return showNotice('Choose or create a session first.', true); session.members = state.members.map((member) => member.id); syncSession(button.dataset.type).catch((error) => showNotice(error.message, true)); renderAttendance(button.dataset.type); }));
+    all('.deselect-all').forEach((button) => button.addEventListener('click', () => { const session = state.sessions[button.dataset.type]; if (!session) return; session.members = []; syncSession(button.dataset.type).catch((error) => showNotice(error.message, true)); renderAttendance(button.dataset.type); }));
     all('.finish-session').forEach((button) => button.addEventListener('click', () => finishSession(button.dataset.type)));
+    all('.create-session').forEach((button) => button.addEventListener('click', () => {
+      $(`#${button.dataset.type}-session-form`).classList.remove('hidden');
+    }));
+    all('.session-select').forEach((select) => select.addEventListener('change', () => activateSession(select.dataset.type, select.value).catch((error) => showNotice(error.message, true))));
     all('.history-search').forEach((input) => input.addEventListener('input', () => renderHistory(input.dataset.type)));
     renderHistory('war'); renderHistory('capital');
     loadSettings().catch((error) => showNotice(error.message, true));
-    if (state.token) Promise.all([loadMembers(), loadActivity()]).catch((error) => showNotice(error.message, true));
+    if (state.token) Promise.all([loadMembers(), loadActivity(), loadSessionList('war'), loadSessionList('capital')]).catch((error) => showNotice(error.message, true));
     $('#logout-button').addEventListener('click', async () => {
       try { await api('/auth/logout', { method: 'POST' }); } catch (error) { showNotice(error.message, true); }
       state.token = null; localStorage.removeItem(tokenKey); setAuthState(); showNotice('Logged out.');
     });
     $('#member-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      try { await api('/members', { method: 'POST', body: JSON.stringify(formObject(event.target)) }); event.target.reset(); await loadMembers(); showNotice('Member added.'); } catch (error) { showNotice(error.message, true); }
+      try {
+        const data = formObject(event.target);
+        data.playerTag = data.playerTag.trim() || 'N/A';
+        await api('/members', { method: 'POST', body: JSON.stringify(data) });
+        event.target.reset();
+        await loadMembers();
+        showNotice('Member added.');
+      } catch (error) { showNotice(error.message, true); }
     });
     $('#member-list').addEventListener('click', async (event) => {
       if (event.target.matches('.edit-member')) {

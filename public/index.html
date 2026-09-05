@@ -54,14 +54,20 @@
     <section id="tab-war" class="tab-panel" data-panel="war">
       <section class="panel">
         <div class="section-heading"><div><p class="eyebrow">WAR ATTENDANCE</p><h2>Clan war session</h2><p class="muted">Each member can use up to 2 attacks. Enter the number already used for each participant.</p></div></div>
-        <form id="war-session-form" class="session-form auth-required">
+        <div class="session-first auth-required" id="war-session-picker">
+          <label>Saved war sessions <select class="session-select" data-type="war"><option value="">Choose a saved session...</option></select></label>
+          <button type="button" class="secondary create-session" data-type="war">Create new session</button>
+        </div>
+        <form id="war-session-form" class="session-form auth-required hidden">
           <input class="session-date" name="date" type="date" aria-label="War session date">
           <input name="title" placeholder="Session title, e.g. War vs Clan X" maxlength="100" aria-label="War session title">
           <button type="submit">Create session</button>
         </form>
-        <div class="bulk-actions auth-required"><button type="button" class="secondary select-all" data-type="war">Select all</button><button type="button" class="secondary deselect-all" data-type="war">Deselect all</button><button type="button" class="finish-session" data-type="war">Finish & save session</button></div>
-        <div id="war-session-label" class="session-label">No active war session.</div>
-        <div id="attendance-grid" class="attendance-grid"></div>
+        <div id="war-workspace" class="session-workspace hidden">
+          <div class="bulk-actions auth-required"><button type="button" class="secondary select-all" data-type="war">Select all</button><button type="button" class="secondary deselect-all" data-type="war">Deselect all</button><button type="button" class="finish-session" data-type="war">Finish & save session</button></div>
+          <div id="war-session-label" class="session-label">No active war session.</div>
+          <div id="attendance-grid" class="attendance-grid"></div>
+        </div>
         <div class="history-block"><h3>Past wars</h3><input class="history-search" data-type="war" placeholder="Search war history"><div id="war-history"></div></div>
       </section>
     </section>
@@ -69,14 +75,20 @@
     <section id="tab-capital" class="tab-panel" data-panel="capital">
       <section class="panel">
         <div class="section-heading"><div><p class="eyebrow">CAPITAL PARTICIPATION</p><h2>Clan Capital session</h2><p class="muted">Each member can use up to 6 attacks. Enter 5 or 6 as applicable for the raid weekend.</p></div></div>
-        <form id="capital-session-form" class="session-form auth-required">
+        <div class="session-first auth-required" id="capital-session-picker">
+          <label>Saved Capital sessions <select class="session-select" data-type="capital"><option value="">Choose a saved session...</option></select></label>
+          <button type="button" class="secondary create-session" data-type="capital">Create new session</button>
+        </div>
+        <form id="capital-session-form" class="session-form auth-required hidden">
           <input class="session-date" name="date" type="date" aria-label="Capital session date">
           <input name="title" placeholder="Session title, e.g. Raid Weekend" maxlength="100" aria-label="Capital session title">
           <button type="submit">Create session</button>
         </form>
-        <div class="bulk-actions auth-required"><button type="button" class="secondary select-all" data-type="capital">Select all</button><button type="button" class="secondary deselect-all" data-type="capital">Deselect all</button><button type="button" class="finish-session" data-type="capital">Finish & save session</button></div>
-        <div id="capital-session-label" class="session-label">No active Capital session.</div>
-        <div id="capital-attendance-grid" class="attendance-grid"></div>
+        <div id="capital-workspace" class="session-workspace hidden">
+          <div class="bulk-actions auth-required"><button type="button" class="secondary select-all" data-type="capital">Select all</button><button type="button" class="secondary deselect-all" data-type="capital">Deselect all</button><button type="button" class="finish-session" data-type="capital">Finish & save session</button></div>
+          <div id="capital-session-label" class="session-label">No active Capital session.</div>
+          <div id="capital-attendance-grid" class="attendance-grid"></div>
+        </div>
         <div class="history-block"><h3>Past Capital raids</h3><input class="history-search" data-type="capital" placeholder="Search Capital history"><div id="capital-history"></div></div>
       </section>
     </section>

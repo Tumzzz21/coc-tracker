@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Stores the clan member roster.
 CREATE TABLE IF NOT EXISTS members (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  player_tag VARCHAR(15) NULL,
+  player_tag VARCHAR(15) NOT NULL DEFAULT 'N/A',
   player_name VARCHAR(100) NOT NULL,
   town_hall_level TINYINT UNSIGNED NOT NULL,
   role ENUM('leader', 'co-leader', 'elder', 'member') NOT NULL DEFAULT 'member',
@@ -74,3 +74,45 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO settings (id, bg_image_url)
 VALUES (1, NULL)
 ON DUPLICATE KEY UPDATE id = id;
+
+CREATE TABLE IF NOT EXISTS war_sessions (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  session_name VARCHAR(100) NOT NULL,
+  session_date DATE NOT NULL,
+  status ENUM('active', 'finished') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS capital_sessions (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  session_name VARCHAR(100) NOT NULL,
+  session_date DATE NOT NULL,
+  status ENUM('active', 'finished') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS war_attendance (
+  session_id INT UNSIGNED NOT NULL,
+  member_id INT UNSIGNED NOT NULL,
+  selected BOOLEAN NOT NULL DEFAULT TRUE,
+  status ENUM('present', 'absent', 'unmarked') NOT NULL DEFAULT 'unmarked',
+  attacks_used TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, member_id),
+  CONSTRAINT fk_war_attendance_session FOREIGN KEY (session_id) REFERENCES war_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_war_attendance_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+  CONSTRAINT chk_war_attendance_attacks CHECK (attacks_used BETWEEN 0 AND 2)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS capital_attendance (
+  session_id INT UNSIGNED NOT NULL,
+  member_id INT UNSIGNED NOT NULL,
+  selected BOOLEAN NOT NULL DEFAULT TRUE,
+  status ENUM('present', 'absent', 'unmarked') NOT NULL DEFAULT 'unmarked',
+  attacks_used TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, member_id),
+  CONSTRAINT fk_capital_attendance_session FOREIGN KEY (session_id) REFERENCES capital_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_capital_attendance_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+  CONSTRAINT chk_capital_attendance_attacks CHECK (attacks_used BETWEEN 0 AND 6)
+) ENGINE=InnoDB;

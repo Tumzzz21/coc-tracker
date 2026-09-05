@@ -125,6 +125,15 @@ Member fields:
 }
 ```
 
+### Persistent sessions
+
+War and Clan Capital sessions are stored in MySQL and require a name and date.
+Use `/api/sessions/war` or `/api/sessions/capital` to create/list sessions,
+`GET /api/sessions/:type/:id` to load a roster, `PUT
+/api/sessions/:type/:id/attendance` to save selection, status, and attack
+counts, and `POST /api/sessions/:type/:id/finish` to finish a session. War
+attendance accepts 0-2 attacks per member; Capital accepts 0-6.
+
 Valid roles are `leader`, `co-leader`, `elder`, and `member`.
 
 ### War activity
