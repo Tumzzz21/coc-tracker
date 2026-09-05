@@ -9,10 +9,13 @@ const tagPattern = /^#[A-Z0-9]{3,12}$/;
 function validateMember(body, partial = false) {
   const values = {};
   if (!partial || body.playerTag !== undefined) {
-    if (typeof body.playerTag !== 'string' || !tagPattern.test(body.playerTag.trim().toUpperCase())) {
+    if (body.playerTag === '' || body.playerTag === null) {
+      values.playerTag = null;
+    } else if (typeof body.playerTag !== 'string' || !tagPattern.test(body.playerTag.trim().toUpperCase())) {
       return { error: 'playerTag must look like #ABC123.' };
+    } else {
+      values.playerTag = body.playerTag.trim().toUpperCase();
     }
-    values.playerTag = body.playerTag.trim().toUpperCase();
   }
   if (!partial || body.playerName !== undefined) {
     if (typeof body.playerName !== 'string' || body.playerName.trim().length < 1 || body.playerName.trim().length > 100) {

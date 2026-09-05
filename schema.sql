@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Stores the clan member roster.
 CREATE TABLE IF NOT EXISTS members (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  player_tag VARCHAR(15) NOT NULL,
+  player_tag VARCHAR(15) NULL,
   player_name VARCHAR(100) NOT NULL,
   town_hall_level TINYINT UNSIGNED NOT NULL,
   role ENUM('leader', 'co-leader', 'elder', 'member') NOT NULL DEFAULT 'member',

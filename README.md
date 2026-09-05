@@ -99,6 +99,8 @@ Authorization: Bearer <token>
 | --- | --- | --- |
 | `POST` | `/api/auth/register` | Register an admin account |
 | `POST` | `/api/auth/confirm` | Confirm the simulated email code |
+| `POST` | `/api/auth/forgot-password` | Generate a simulated password-reset code |
+| `POST` | `/api/auth/reset-password` | Set a new password using the reset code |
 | `POST` | `/api/auth/login` | Log in and receive a token |
 | `GET` | `/api/auth/me` | Return the current admin |
 | `POST` | `/api/auth/logout` | Invalidate the current token |
