@@ -15,59 +15,55 @@ let tablesReady;
 async function initializeTables() {
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS war_sessions (
-      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       session_name VARCHAR(100) NOT NULL,
       session_date DATE NOT NULL,
-      status ENUM('active', 'finished') NOT NULL DEFAULT 'active',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (id)
-    ) ENGINE=InnoDB`
+      status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'finished')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
   );
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS capital_sessions (
-      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       session_name VARCHAR(100) NOT NULL,
       session_date DATE NOT NULL,
-      status ENUM('active', 'finished') NOT NULL DEFAULT 'active',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (id)
-    ) ENGINE=InnoDB`
+      status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'finished')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
   );
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS war_attendance (
-      session_id INT UNSIGNED NOT NULL,
-      member_id INT UNSIGNED NOT NULL,
+      session_id BIGINT NOT NULL,
+      member_id BIGINT NOT NULL,
       selected BOOLEAN NOT NULL DEFAULT TRUE,
-      status ENUM('present', 'absent', 'unmarked') NOT NULL DEFAULT 'unmarked',
-      attacks_used TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'unmarked' CHECK (status IN ('present', 'absent', 'unmarked')),
+      attacks_used SMALLINT NOT NULL DEFAULT 0 CHECK (attacks_used BETWEEN 0 AND 2),
       PRIMARY KEY (session_id, member_id),
       CONSTRAINT fk_war_attendance_session FOREIGN KEY (session_id) REFERENCES war_sessions(id) ON DELETE CASCADE,
-      CONSTRAINT fk_war_attendance_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
-      CONSTRAINT chk_war_attendance_attacks CHECK (attacks_used BETWEEN 0 AND 2)
-    ) ENGINE=InnoDB`
+      CONSTRAINT fk_war_attendance_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    )`
   );
   await pool.execute(
     `CREATE TABLE IF NOT EXISTS capital_attendance (
-      session_id INT UNSIGNED NOT NULL,
-      member_id INT UNSIGNED NOT NULL,
+      session_id BIGINT NOT NULL,
+      member_id BIGINT NOT NULL,
       selected BOOLEAN NOT NULL DEFAULT TRUE,
-      status ENUM('present', 'absent', 'unmarked') NOT NULL DEFAULT 'unmarked',
-      attacks_used TINYINT UNSIGNED NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'unmarked' CHECK (status IN ('present', 'absent', 'unmarked')),
+      attacks_used SMALLINT NOT NULL DEFAULT 0 CHECK (attacks_used BETWEEN 0 AND 6),
       PRIMARY KEY (session_id, member_id),
       CONSTRAINT fk_capital_attendance_session FOREIGN KEY (session_id) REFERENCES capital_sessions(id) ON DELETE CASCADE,
-      CONSTRAINT fk_capital_attendance_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
-      CONSTRAINT chk_capital_attendance_attacks CHECK (attacks_used BETWEEN 0 AND 6)
-    ) ENGINE=InnoDB`
+      CONSTRAINT fk_capital_attendance_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    )`
   );
   // Older databases predate these columns, so add only the ones that are missing.
   const attendanceColumns = [
     ['selected', 'BOOLEAN NOT NULL DEFAULT TRUE'],
-    ['status', "ENUM('present', 'absent', 'unmarked') NOT NULL DEFAULT 'unmarked'"],
-    ['attacks_used', 'TINYINT UNSIGNED NOT NULL DEFAULT 0']
+    ['status', "VARCHAR(20) NOT NULL DEFAULT 'unmarked'"],
+    ['attacks_used', 'SMALLINT NOT NULL DEFAULT 0']
   ];
   const sessionColumns = [
-    ['status', "ENUM('active', 'finished') NOT NULL DEFAULT 'active'"],
-    ['created_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP']
+    ['status', "VARCHAR(20) NOT NULL DEFAULT 'active'"],
+    ['created_at', 'TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP']
   ];
   for (const [column, definition] of attendanceColumns) {
     await ensureColumn('war_attendance', column, definition);
@@ -143,7 +139,7 @@ router.post('/:type', requireAdmin, async (req, res, next) => {
   if (validationError) return res.status(400).json({ error: validationError });
   try {
     const [result] = await pool.execute(
-      `INSERT INTO ${selected.sessions} (session_name, session_date) VALUES (?, ?)`,
+      `INSERT INTO ${selected.sessions} (session_name, session_date) VALUES (?, ?) RETURNING id`,
       [req.body.name.trim(), req.body.date]
     );
     res.status(201).json({ data: { id: result.insertId, name: req.body.name.trim(), date: req.body.date, status: 'active' } });
@@ -197,7 +193,7 @@ router.put('/:type/:id/attendance', requireAdmin, async (req, res, next) => {
       await connection.execute(
         `INSERT INTO ${selected.attendance} (session_id, member_id, selected, status, attacks_used)
          VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE selected = VALUES(selected), status = VALUES(status), attacks_used = VALUES(attacks_used)`,
+         ON CONFLICT (session_id, member_id) DO UPDATE SET selected = EXCLUDED.selected, status = EXCLUDED.status, attacks_used = EXCLUDED.attacks_used`,
         [id, memberId, isSelected, status, attacksUsed]
       );
     }

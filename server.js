@@ -18,6 +18,15 @@ app.use(express.urlencoded({ extended: false }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.use(async (req, res, next) => {
+  try {
+    await initializeUserTable();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use('/api/auth', authRoutes.router);
 app.use('/api/members', memberRoutes);
 app.use('/api', warRoutes);
@@ -63,7 +72,7 @@ app.put('/api/settings', requireAdmin, async (req, res, next) => {
 
   try {
     await pool.execute(
-      'INSERT INTO settings (id, bg_image_url) VALUES (1, ?) ON DUPLICATE KEY UPDATE bg_image_url = VALUES(bg_image_url)',
+      'INSERT INTO settings (id, bg_image_url) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET bg_image_url = EXCLUDED.bg_image_url',
       [value || null]
     );
     res.json({ data: { bgImageUrl: value || null } });
@@ -85,7 +94,7 @@ app.use((error, req, res, next) => {
   // Keep database details out of responses while preserving a useful server log.
   console.error(error);
   if (res.headersSent) return next(error);
-  if (error && error.code === 'ER_NO_SUCH_TABLE') {
+  if (error && (error.code === '42P01' || error.code === 'ER_NO_SUCH_TABLE')) {
     error.statusCode = 503;
     error.publicMessage = 'Session database tables are missing. Restart the server to initialize them.';
   }

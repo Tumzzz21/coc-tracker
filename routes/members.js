@@ -88,12 +88,12 @@ router.post('/', requireAdmin, async (req, res, next) => {
       if (duplicates.length) return res.status(409).json({ error: 'That player tag is already in the roster.' });
     }
     const [insert] = await pool.execute(
-      'INSERT INTO members (player_tag, player_name, town_hall_level, role) VALUES (?, ?, ?, ?)',
+      'INSERT INTO members (player_tag, player_name, town_hall_level, role) VALUES (?, ?, ?, ?) RETURNING id',
       [playerTag, playerName, townHallLevel, role]
     );
     res.status(201).json({ data: { id: insert.insertId, ...result.values } });
   } catch (error) {
-    if (error && error.code === 'ER_DUP_ENTRY') {
+    if (error && error.code === '23505') {
       return res.status(409).json({ error: 'That player tag is already in the roster.' });
     }
     next(error);
@@ -125,7 +125,7 @@ async function updateMember(req, res, next) {
     if (!update.affectedRows) return res.status(404).json({ error: 'Member not found.' });
     res.json({ data: { id, ...result.values } });
   } catch (error) {
-    if (error && error.code === 'ER_DUP_ENTRY') {
+    if (error && error.code === '23505') {
       return res.status(409).json({ error: 'That player tag is already in the roster.' });
     }
     next(error);

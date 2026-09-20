@@ -40,7 +40,7 @@ async function main() {
     return;
   }
 
-  await ensureColumn('users', 'role', "ENUM('admin', 'user') NOT NULL DEFAULT 'user'");
+  await ensureColumn('users', 'role', "VARCHAR(20) NOT NULL DEFAULT 'user'");
   const [rows] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
 
   if (rows.length) {
