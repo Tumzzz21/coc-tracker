@@ -92,7 +92,12 @@ app.get('*', (req, res, next) => {
 
 app.use((error, req, res, next) => {
   // Keep database details out of responses while preserving a useful server log.
-  console.error(error);
+  console.error('Request failed:', {
+    method: req.method,
+    path: req.path,
+    code: error && error.code,
+    message: error && error.message
+  });
   if (res.headersSent) return next(error);
   if (error && (error.code === '42P01' || error.code === 'ER_NO_SUCH_TABLE')) {
     error.statusCode = 503;

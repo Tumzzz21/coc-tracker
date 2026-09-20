@@ -131,7 +131,10 @@ foreign-key order: `users`, `members`, logs, sessions, attendance, then
    | `ALLOW_REGISTRATION` | `false` |
    | `CONFIRMATION_CODE_EXPIRY_MINUTES` | `30` |
 
-   Do not add `PORT`; Vercel provides it automatically. Do not add the local
+   Do not add `PORT`; Vercel provides it automatically. If Vercel or a database
+   integration already created `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or
+   `POSTGRES_URL_NON_POOLING`, the app can use those as fallbacks, but
+   `DATABASE_URL` is preferred. Do not add the local
    `DB_HOST`, `DB_USER`, or XAMPP values when using `DATABASE_URL`.
 6. Select **Deploy**. Vercel installs dependencies from `package.json` and
    uses `api/index.js` as the serverless Express entrypoint.
