@@ -8,7 +8,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test \"tests/**/*.test.js\"",
-    "set-admin": "node scripts/set-admin.js"
+    "set-admin": "node scripts/set-admin.js",
+    "vercel-build": "echo Vercel build complete"
   },
   "engines": {
     "node": ">=18"
@@ -17,6 +18,6 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
-    "mysql2": "^3.11.3"
+    "pg": "^8.23.0"
   }
 }

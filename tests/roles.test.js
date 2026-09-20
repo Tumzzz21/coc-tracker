@@ -1,6 +1,6 @@
 'use strict';
 // Verifies the role boundary end to end through the real Express app, using a
-// small in-memory stand-in for MySQL so the suite runs without a database.
+// Small in-memory stand-in so the suite runs without a database.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');

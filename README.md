@@ -1,6 +1,6 @@
 # Clash of Clans Clan Activity Tracker
 
-A lightweight clan management dashboard built with HTML5, CSS3, vanilla JavaScript, Node.js, Express, and MySQL.
+A lightweight clan management dashboard built with HTML5, CSS3, vanilla JavaScript, Node.js, Express, and PostgreSQL.
 
 ## Features
 
@@ -14,7 +14,7 @@ A lightweight clan management dashboard built with HTML5, CSS3, vanilla JavaScri
 ## Requirements
 
 - Node.js 18 or newer
-- MySQL 8 or compatible MySQL server
+- PostgreSQL 14+ (Supabase is recommended for production)
 - npm
 
 ## Installation
@@ -31,13 +31,13 @@ A lightweight clan management dashboard built with HTML5, CSS3, vanilla JavaScri
    npm install
    ```
 
-3. Create the database and tables:
+3. Create a local PostgreSQL database and tables:
 
    ```bash
-   mysql -u root -p < schema.sql
+   psql -U postgres -d postgres -f schema.sql
    ```
 
-4. Copy `.env.example` to `.env` and update the MySQL credentials:
+4. Copy `.env.example` to `.env` and update the PostgreSQL credentials:
 
    ```bash
    copy .env.example .env
@@ -63,11 +63,11 @@ For development with Node’s file watcher:
 npm run dev
 ```
 
-## Deploying to Railway or Render
+## Deploying to Vercel with Supabase
 
-The app is ready to deploy as a Node.js web service. You must create the
-hosting and database accounts yourself; never commit `.env` or paste database
-passwords into Git.
+The app is configured as a Vercel serverless Express function and uses
+Supabase PostgreSQL. Vercel and Supabase accounts must be created by you;
+never commit `.env`, passwords, or database dumps.
 
 ### 1. Push the project to GitHub
 
@@ -86,100 +86,68 @@ git push -u origin main
 If this repository already has a remote, use `git remote -v` and skip
 `git init` and `git remote add`.
 
-### 2. Create the cloud MySQL database
+### 2. Create the Supabase database
 
-Railway can provision a MySQL service in the same project. Create a Railway
-project, add **MySQL**, and copy its connection variables. Alternatively, use
-any managed MySQL provider that supplies a host, port, database name, user,
-and password. Render does not provide the Node service's database credentials;
-use a separate managed MySQL provider when deploying the web service there.
+1. Create a free Supabase project.
+2. Open **SQL Editor**, paste the contents of `schema.sql`, and run it.
+3. Open **Project Settings > Database** and copy the connection string.
+   Prefer the pooler connection string for serverless workloads.
+4. Keep the connection string private. It contains the database password.
 
-### 3. Import the local XAMPP database
+Set `DATABASE_URL` to that connection string. The app also supports individual
+`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` variables for
+local PostgreSQL, but `DATABASE_URL` takes precedence.
 
-Export the local database using the XAMPP shell or PowerShell. Adjust the
-path if XAMPP is installed elsewhere:
+### 3. Migrate existing data
+
+The old XAMPP database is MySQL and cannot be imported directly into Supabase
+PostgreSQL. For a small roster, use the Supabase schema and re-enter data.
+For a full migration, export CSV files from phpMyAdmin and import them in
+foreign-key order: `users`, `members`, logs, sessions, attendance, then
+`settings`. Review MySQL-to-PostgreSQL type changes before importing.
+
+### 4. Deploy to Vercel
+
+From PowerShell:
 
 ```powershell
-& "C:\xampp\mysql\bin\mysqldump.exe" -u root -p --single-transaction --routines --triggers coc_clan_tracker > "$env:USERPROFILE\Desktop\coc_clan_tracker.sql"
+cd "E:\CODING FILE\coc-clan-tracker"
+npm.cmd install
+npx vercel login
+npx vercel link
+npx vercel env add DATABASE_URL production
+npx vercel env add ADMIN_EMAILS production
+npx vercel env add ADMIN_PASSWORD production
+npx vercel --prod
 ```
 
-For a new hosted database, remove the first `CREATE DATABASE` and `USE`
-statements from the dump if the provider gives you a different database name.
-Then import the dump using the provider's host, port, user, and database:
+The Vercel project should use the repository root containing `package.json`,
+`api/index.js`, and `vercel.json`. The build command is `npm ci`; the
+`vercel-build` script is included for Vercel. Add
+`CONFIRMATION_CODE_EXPIRY_MINUTES=30` and `ALLOW_REGISTRATION=false` as
+production variables too. Do not set `PORT`; Vercel supplies the runtime.
 
-```powershell
-& "C:\xampp\mysql\bin\mysql.exe" `
-  --host=<cloud-host> --port=<cloud-port> `
-  --user=<cloud-user> --password `
-  <cloud-database> < "$env:USERPROFILE\Desktop\coc_clan_tracker.sql"
+Verify the deployment:
+
+```text
+https://<your-vercel-domain>/health
 ```
 
-The password prompt is intentionally interactive so it is not saved in shell
-history. If you only need empty tables, run `schema.sql` instead of importing
-a data dump.
-
-### 4. Deploy on Railway
-
-1. In Railway, choose **New project > Deploy from GitHub repo**.
-2. Select this repository and the Node service.
-3. Set the service root directory to `coc-clan-tracker` if the repository
-   contains the app in a subdirectory.
-4. Set the following service variables under **Variables**:
-
-   ```text
-   DB_HOST=<cloud-host>
-   DB_PORT=<cloud-port>
-   DB_USER=<cloud-user>
-   DB_PASSWORD=<cloud-password>
-   DB_NAME=<cloud-database>
-   CONFIRMATION_CODE_EXPIRY_MINUTES=30
-   ```
-
-   Do not set `PORT`; Railway supplies it automatically.
-5. Deploy. The start command is `npm start`.
-6. Verify `https://<railway-domain>/health` returns `{"status":"ok"}`.
-
-If the MySQL service is in the same Railway project, use the MySQL service's
-private connection values where supported. Use its public connection values
-for an externally hosted app or local migration.
-
-### 5. Deploy on Render
-
-1. Choose **New > Web Service**, connect the GitHub repository, and set the
-   root directory to `coc-clan-tracker` when needed.
-2. Use:
-   - Build command: `npm ci`
-   - Start command: `npm start`
-   - Health check path: `/health`
-3. Add the same `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`,
-   `DB_NAME`, and `CONFIRMATION_CODE_EXPIRY_MINUTES` variables in Render's
-   Environment settings.
-4. Deploy and confirm the generated `https://<service>.onrender.com/health`
-   URL returns `{"status":"ok"}`.
-
-## Free public URL and HTTPS
-
-Railway and Render provide a generated public `https://` subdomain at no
-extra domain-registration cost (subject to each provider's current free-tier
-limits). In the service's **Domains** settings, generate or copy the default
-domain and share that URL.
-
-For a custom domain, buy or use a domain you control, add it in the provider's
-Domains page, create the DNS CNAME record it gives you, and wait for DNS
-propagation. Both providers provision HTTPS certificates automatically after
-DNS verification. Do not create a password-protected tunnel or expose the
-XAMPP machine as the production database.
+Vercel provides a free `vercel.app` HTTPS URL. Add a custom domain under
+**Vercel Project > Settings > Domains**; Vercel provisions HTTPS after DNS
+verification.
 
 ## Environment variables
 
 | Variable | Description | Default |
 | --- | --- | --- |
 | `PORT` | HTTP server port | `3000` |
-| `DB_HOST` | MySQL host | `localhost` |
-| `DB_PORT` | MySQL port | `3306` |
-| `DB_USER` | MySQL username | — |
-| `DB_PASSWORD` | MySQL password | — |
-| `DB_NAME` | MySQL database name | `coc_clan_tracker` |
+| `DATABASE_URL` | Supabase PostgreSQL connection string | — |
+| `DB_HOST` | Local PostgreSQL host when `DATABASE_URL` is empty | `localhost` |
+| `DB_PORT` | PostgreSQL port | `5432` |
+| `DB_USER` | PostgreSQL username | — |
+| `DB_PASSWORD` | PostgreSQL password | — |
+| `DB_NAME` | PostgreSQL database name | `postgres` |
 | `CONFIRMATION_CODE_EXPIRY_MINUTES` | Simulated confirmation-code lifetime | `30` |
 
 ## Authentication flow
@@ -234,7 +202,7 @@ Member fields:
 
 ### Persistent sessions
 
-War and Clan Capital sessions are stored in MySQL and require a name and date.
+War and Clan Capital sessions are stored in PostgreSQL and require a name and date.
 Use `/api/sessions/war` or `/api/sessions/capital` to create/list sessions,
 `GET /api/sessions/:type/:id` to load a roster, `PUT
 /api/sessions/:type/:id/attendance` to save selection, status, and attack
@@ -310,6 +278,7 @@ coc-clan-tracker/
 │   ├── css/style.css
 │   └── js/main.js
 ├── config/db.js
+├── api/index.js
 ├── routes/
 │   ├── auth.js
 │   ├── members.js
@@ -318,7 +287,8 @@ coc-clan-tracker/
 ├── package.json
 ├── README.md
 ├── schema.sql
-└── server.js
+├── server.js
+└── vercel.json
 ```
 
 ## Production notes
@@ -326,4 +296,4 @@ coc-clan-tracker/
 - Use HTTPS in production.
 - Store sessions in a persistent server-side store instead of the in-memory token map.
 - Do not expose simulated confirmation codes in a production response.
-- Use a dedicated MySQL user with only the permissions required by this application.
+- Use a dedicated Supabase database role with only the permissions required by this application.

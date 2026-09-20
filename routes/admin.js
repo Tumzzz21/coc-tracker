@@ -57,12 +57,12 @@ router.post('/users', async (req, res, next) => {
     const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
     if (existing.length) return res.status(409).json({ error: 'An account with that email already exists.' });
     const [insert] = await pool.execute(
-      'INSERT INTO users (email, password_hash, is_confirmed, role) VALUES (?, ?, TRUE, ?)',
+      'INSERT INTO users (email, password_hash, is_confirmed, role) VALUES (?, ?, TRUE, ?) RETURNING id',
       [email, await bcrypt.hash(password, 12), role]
     );
     res.status(201).json({ data: { id: insert.insertId, email, role, isConfirmed: true } });
   } catch (error) {
-    if (error && error.code === 'ER_DUP_ENTRY') {
+    if (error && error.code === '23505') {
       return res.status(409).json({ error: 'An account with that email already exists.' });
     }
     next(error);

@@ -71,8 +71,8 @@ router.post('/wars', requireAdmin, async (req, res, next) => {
     await pool.execute(
       `INSERT INTO war_logs (member_id, war_date, attacks_used, missed_attack)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE attacks_used = VALUES(attacks_used),
-         missed_attack = VALUES(missed_attack)`,
+       ON CONFLICT (member_id, war_date) DO UPDATE SET attacks_used = EXCLUDED.attacks_used,
+         missed_attack = EXCLUDED.missed_attack`,
       [memberId, body.warDate, attacksUsed, missedAttack]
     );
     res.status(201).json({ data: { memberId, warDate: body.warDate, attacksUsed, missedAttack } });
@@ -140,8 +140,8 @@ router.post('/capital', requireAdmin, async (req, res, next) => {
     await pool.execute(
       `INSERT INTO capital_logs (member_id, raid_weekend_date, attacks_used, capital_gold_looted)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE attacks_used = VALUES(attacks_used),
-         capital_gold_looted = VALUES(capital_gold_looted)`,
+       ON CONFLICT (member_id, raid_weekend_date) DO UPDATE SET attacks_used = EXCLUDED.attacks_used,
+         capital_gold_looted = EXCLUDED.capital_gold_looted`,
       [memberId, body.raidWeekendDate, attacksUsed, capitalGoldLooted]
     );
     res.status(201).json({ data: { memberId, raidWeekendDate: body.raidWeekendDate, attacksUsed, capitalGoldLooted } });

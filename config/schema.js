@@ -5,7 +5,7 @@ async function tableExists(table) {
   const [rows] = await pool.execute(
     `SELECT COUNT(*) AS count
        FROM information_schema.tables
-      WHERE table_schema = DATABASE()
+      WHERE table_schema = current_schema()
         AND table_name = ?`,
     [table]
   );
@@ -16,7 +16,7 @@ async function columnExists(table, column) {
   const [rows] = await pool.execute(
     `SELECT COUNT(*) AS count
        FROM information_schema.columns
-      WHERE table_schema = DATABASE()
+      WHERE table_schema = current_schema()
         AND table_name = ?
         AND column_name = ?`,
     [table, column]
@@ -24,11 +24,11 @@ async function columnExists(table, column) {
   return rows[0].count > 0;
 }
 
-// MySQL 8 has no "ADD COLUMN IF NOT EXISTS" clause (that is MariaDB syntax), so the
-// column is checked first and a plain ALTER TABLE runs only when it is missing.
+// The column is checked first so this migration also works against older
+// PostgreSQL databases created before the column was introduced.
 async function ensureColumn(table, column, definition) {
   if (await columnExists(table, column)) return false;
-  await pool.execute(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  await pool.execute(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`);
   return true;
 }
 

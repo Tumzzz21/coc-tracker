@@ -73,13 +73,14 @@ async function requireAdmin(req, res, next) {
 
 // Adds the role columns to older databases and provisions every configured
 // administrator account, so admins exist before anyone can register.
-async function initializeUserTable() {
+async function provisionUserTable() {
   if (!(await tableExists('users'))) {
     console.warn('The users table is missing. Run schema.sql before starting the server.');
     return;
   }
-  await ensureColumn('users', 'role', "ENUM('admin', 'user') NOT NULL DEFAULT 'user'");
-  await ensureColumn('users', 'created_at', 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP');
+
+  await ensureColumn('users', 'role', "VARCHAR(20) NOT NULL DEFAULT 'user'");
+  await ensureColumn('users', 'created_at', 'TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP');
   for (const email of adminEmails) {
     const [rows] = await pool.execute('SELECT id, role FROM users WHERE email = ?', [email]);
     if (rows.length) {
@@ -95,11 +96,22 @@ async function initializeUserTable() {
       continue;
     }
     await pool.execute(
-      "INSERT INTO users (email, password_hash, is_confirmed, role) VALUES (?, ?, TRUE, 'admin')",
+      "INSERT INTO users (email, password_hash, is_confirmed, role) VALUES (?, ?, TRUE, 'admin') RETURNING id",
       [email, await bcrypt.hash(seedPassword, 12)]
     );
     console.log(`Created administrator account ${email}.`);
   }
+}
+
+let userTableReady;
+function initializeUserTable() {
+  if (!userTableReady) {
+    userTableReady = provisionUserTable().catch((error) => {
+      userTableReady = null;
+      throw error;
+    });
+  }
+  return userTableReady;
 }
 
 router.post('/register', async (req, res, next) => {
@@ -138,7 +150,7 @@ router.post('/register', async (req, res, next) => {
       }
     });
   } catch (error) {
-    if (error && error.code === 'ER_DUP_ENTRY') {
+    if (error && error.code === '23505') {
       return res.status(409).json({ error: 'An account with that email already exists.' });
     }
     next(error);
