@@ -106,28 +106,53 @@ For a full migration, export CSV files from phpMyAdmin and import them in
 foreign-key order: `users`, `members`, logs, sessions, attendance, then
 `settings`. Review MySQL-to-PostgreSQL type changes before importing.
 
-### 4. Deploy to Vercel
+### 4. Deploy from the Vercel website
 
-From PowerShell:
+1. Push the project to GitHub. The repository must contain `package.json`,
+   `api/index.js`, `vercel.json`, and `public/`.
+2. Open [vercel.com](https://vercel.com), sign in, and select **Add New...
+   > Project**.
+3. Under **Import Git Repository**, find `Tumzzz21/coc-tracker` and select
+   **Import**.
+4. In **Configure Project**, use:
+   - **Framework Preset:** Other
+   - **Root Directory:** `./` if `package.json` is at the repository root
+   - **Build Command:** `npm run vercel-build` (or leave Vercel's default)
+   - **Output Directory:** leave empty
+   - **Install Command:** `npm install` or `npm ci`
+5. Expand **Environment Variables** and add each variable for the
+   **Production** environment:
 
-```powershell
-cd "E:\CODING FILE\coc-clan-tracker"
-npm.cmd install
-npx vercel login
-npx vercel link
-npx vercel env add DATABASE_URL production
-npx vercel env add ADMIN_EMAILS production
-npx vercel env add ADMIN_PASSWORD production
-npx vercel --prod
-```
+   | Name | Value |
+   | --- | --- |
+   | `DATABASE_URL` | Supabase PostgreSQL connection string |
+   | `ADMIN_EMAILS` | Your administrator email |
+   | `ADMIN_PASSWORD` | A temporary password of at least 8 characters |
+   | `ALLOW_REGISTRATION` | `false` |
+   | `CONFIRMATION_CODE_EXPIRY_MINUTES` | `30` |
 
-The Vercel project should use the repository root containing `package.json`,
-`api/index.js`, and `vercel.json`. The build command is `npm ci`; the
-`vercel-build` script is included for Vercel. Add
-`CONFIRMATION_CODE_EXPIRY_MINUTES=30` and `ALLOW_REGISTRATION=false` as
-production variables too. Do not set `PORT`; Vercel supplies the runtime.
+   Do not add `PORT`; Vercel provides it automatically. Do not add the local
+   `DB_HOST`, `DB_USER`, or XAMPP values when using `DATABASE_URL`.
+6. Select **Deploy**. Vercel installs dependencies from `package.json` and
+   uses `api/index.js` as the serverless Express entrypoint.
+7. When deployment finishes, open the generated `.vercel.app` URL.
+8. Test the database connection at:
 
-Verify the deployment:
+   ```text
+   https://<your-project>.vercel.app/health
+   ```
+
+   A working deployment returns `{"status":"ok"}`.
+
+To change variables later, open **Vercel Project > Settings > Environment
+Variables**, edit the value, then create a new deployment from **Deployments >
+Redeploy**. Environment variable changes do not affect an already-running
+deployment until it is redeployed.
+
+Vercel does not import `.env` files from the Git repository. This is
+intentional: database passwords must not be committed to source control.
+Use `.env.example` as the list of required names, then paste the real values
+into Vercel's Environment Variables form.
 
 ```text
 https://<your-vercel-domain>/health
