@@ -7,23 +7,18 @@ const roles = new Set(['leader', 'co-leader', 'elder', 'member']);
 const tagPattern = /^(?:N\/A|#[A-Z0-9]{3,12})$/;
 let tagIndexReady;
 
+// Old MySQL installs carried a unique index on player_tag that blocked shared
+// 'N/A' entries; DROP INDEX IF EXISTS is a no-op where it never existed and
+// works on both PostgreSQL and SQLite.
 async function removeTagUniqueIndex() {
   if (!tagIndexReady) {
-    tagIndexReady = (async () => {
-      const [indexes] = await pool.execute(
-        `SELECT COUNT(*) AS count
-         FROM information_schema.statistics
-         WHERE table_schema = DATABASE()
-           AND table_name = 'members'
-           AND index_name = 'uq_members_player_tag'`
-      );
-      if (indexes[0].count) {
-        await pool.execute('ALTER TABLE members DROP INDEX uq_members_player_tag');
-      }
-    })().catch((error) => {
-      tagIndexReady = null;
-      throw error;
-    });
+    tagIndexReady = pool
+      .execute('DROP INDEX IF EXISTS uq_members_player_tag')
+      .then(() => undefined)
+      .catch((error) => {
+        tagIndexReady = null;
+        throw error;
+      });
   }
   return tagIndexReady;
 }

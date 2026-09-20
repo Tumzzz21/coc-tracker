@@ -57,6 +57,20 @@ A lightweight clan management dashboard built with HTML5, CSS3, vanilla JavaScri
 
 6. Open [http://localhost:3000](http://localhost:3000).
 
+## Running locally without PostgreSQL
+
+The app normally needs PostgreSQL (locally or via Supabase). If no PostgreSQL
+server is reachable, it automatically falls back to an embedded SQLite database
+stored in `data/coc-tracker.sqlite` (created on first start, no installation
+needed), so `npm start` works on any machine. A notice is printed on the console
+when the fallback is active. The administrator account listed in `ADMIN_EMAILS`
+is created automatically on first start using `ADMIN_PASSWORD`.
+
+To force a backend, set `DB_CLIENT=sqlite` or `DB_CLIENT=postgres` in `.env`.
+To use PostgreSQL again, set `DATABASE_URL` (Supabase) and restart; the SQLite
+file is only used while PostgreSQL is unreachable. The fallback is disabled on
+Vercel so a missing `DATABASE_URL` there always surfaces as an error.
+
 For development with Node’s file watcher:
 
 ```bash
