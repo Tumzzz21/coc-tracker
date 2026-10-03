@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Wars — CoC Attack Tracker{% endblock %}
+{% block nav_wars %}active{% endblock %}
+{% block content %}
+<h1>Wars</h1>
+<div class="page-tabs">
+  <button class="page-tab" data-target="tab-wars" type="button">War History</button>
+  <button class="page-tab" data-target="tab-leaderboard" type="button">Leaderboard</button>
+</div>
+
+<div id="tab-wars" class="tab-panel">
+  <p class="muted">Click a war to see every attack in it, grouped per member.
+     Attack detail is only reported by the API for a war that is still live, so
+     wars that finished before tracking started show no attack list.</p>
+  <div class="sort-controls">
+    <label class="field-inline" for="wars-sort">
+      <span class="muted">Sort by</span>
+      <select id="wars-sort" class="filter-select">
+        <option value="newest" selected>Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="result">Result (wins first)</option>
+        <option value="stars">Stars (most first)</option>
+        <option value="destruction">Destruction (highest)</option>
+        <option value="opponent">Opponent A &rarr; Z</option>
+      </select>
+    </label>
+  </div>
+  <div id="wars-container" class="muted">Loading wars…</div>
+</div>
+
+<div id="tab-leaderboard" class="tab-panel">
+  <section class="card card-single-war">
+    <h2>War stars — one war at a time</h2>
+    <p class="muted">Pick a war, then see who earned stars in it. The CoC API only
+       reports individual attacks while a war is live or just ended, so older wars
+       have no star detail.</p>
+    <div id="leaderboard-war-summary" class="war-summary"></div>
+    <div class="sort-controls">
+      <label class="field-inline" for="leaderboard-war-select">
+        <span class="muted">War</span>
+        <select id="leaderboard-war-select" class="filter-select"></select>
+      </label>
+      <label class="field-inline" for="leaderboard-per-war-sort">
+        <span class="muted">Sort by</span>
+        <select id="leaderboard-per-war-sort" class="filter-select">
+          <option value="stars" selected>Stars (high &rarr; low)</option>
+          <option value="stars_asc">Stars (low &rarr; high)</option>
+          <option value="destruction">Avg destruction</option>
+          <option value="attacks">Attacks used</option>
+        </select>
+      </label>
+      <label class="field-inline checkbox-inline">
+        <input type="checkbox" id="leaderboard-include-enemy">
+        <span class="muted">Show enemy side instead</span>
+      </label>
+    </div>
+    <div id="leaderboard-per-war" class="muted">Loading…</div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+{# War History / Leaderboard data loads via the tab handler in main.js #}
+{% endblock %}

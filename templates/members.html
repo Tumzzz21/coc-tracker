@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Members — CoC Attack Tracker{% endblock %}
+{% block nav_members %}active{% endblock %}
+{% block content %}
+<h1>Members</h1>
+<div class="sort-controls">
+  <label class="field-inline" for="members-sort">
+    <span class="muted">Sort by</span>
+    <select id="members-sort" class="filter-select">
+      <option value="name_asc" selected>Name A &rarr; Z</option>
+      <option value="name_desc">Name Z &rarr; A</option>
+      <option value="role">Role (Leader &rarr; Member)</option>
+      <option value="role_desc">Role (Member &rarr; Leader)</option>
+      <option value="trophies">Trophies (high &rarr; low)</option>
+      <option value="trophies_asc">Trophies (low &rarr; high)</option>
+      <option value="town_hall">Town Hall (high &rarr; low)</option>
+    </select>
+  </label>
+</div>
+<div id="members-container" class="muted">Loading members…</div>
+{% endblock %}
+{% block scripts %}
+<script>document.addEventListener('DOMContentLoaded', () => loadMembers());</script>
+{% endblock %}

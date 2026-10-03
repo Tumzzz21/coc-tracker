@@ -1,23 +1,10 @@
 {
-  "name": "coc-clan-tracker",
+  "name": "coc-attack-tracker",
   "version": "1.0.0",
-  "description": "Clash of Clans clan activity tracker",
+  "description": "Clash of Clans war & Clan Capital attack tracker (Python/Flask)",
   "private": true,
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "node --test \"tests/**/*.test.js\"",
-    "set-admin": "node scripts/set-admin.js",
-    "vercel-build": "echo Vercel build complete"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1",
-    "pg": "^8.23.0"
+    "start": "python app.py",
+    "dev": "python app.py"
   }
 }

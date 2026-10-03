@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block nav_home %}active{% endblock %}
+{% block content %}
+  {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+
+  <div class="page-tabs">
+    <button class="page-tab" data-target="tab-current-war" type="button">⚔ Current War</button>
+    <button class="page-tab" data-target="tab-clan" type="button">🛡 Clan</button>
+    <button class="page-tab" data-target="tab-recent-wars" type="button">📜 Recent Wars</button>
+    <button class="page-tab" data-target="tab-recent-raids" type="button">🏰 Recent Raids</button>
+    <button class="page-tab" data-target="tab-top-members" type="button">👥 Top Members</button>
+    <button class="page-tab" data-target="tab-inactivity" type="button">😴 Inactivity</button>
+  </div>
+
+  <div id="tab-current-war" class="tab-panel">
+    <section class="card" id="current-war-card">
+      <h2>Current war <span class="muted">— auto-refreshes while this tab is open</span></h2>
+      <div id="current-war" class="muted">Loading…</div>
+    </section>
+  </div>
+
+  <div id="tab-clan" class="tab-panel">
+  {% if clan %}
+  <section class="card clan-card">
+    <img class="clan-badge" src="{{ clan.badgeUrls.small }}" alt="Clan badge"
+         onerror="this.style.display='none'">
+    <div>
+      <h1>{{ clan.name }}</h1>
+      <p class="muted">{{ clan.tag }} &middot; Level {{ clan.clanLevel }} &middot;
+         {{ clan.members }}/50 members &middot; {{ clan.warWins or 0 }} war wins</p>
+      <p class="muted">{{ clan.description }}</p>
+    </div>
+  </section>
+  {% else %}
+  <section class="card"><p class="muted">Clan info unavailable — check the CoC API token / IP whitelist.</p></section>
+  {% endif %}
+  </div>
+
+  <div id="tab-recent-wars" class="tab-panel">
+    <section class="card">
+      <h2>Recent wars</h2>
+      <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Opponent</th><th>Result</th><th>Stars</th><th>Destr.</th></tr></thead>
+        <tbody>
+        {% for w in wars %}
+          <tr>
+            <td>{{ w.opponent_name }}</td>
+            <td><span class="badge badge-{{ w.result or 'pending' }}">{{ w.result or '—' }}</span></td>
+            <td>{{ w.stars_for }} – {{ w.stars_against }}</td>
+            <td>{{ w.destruction_for|round(1) }}%</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="muted">No wars synced yet — click Refresh now.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="tab-recent-raids" class="tab-panel">
+    <section class="card">
+      <h2>Recent raid weekends</h2>
+      <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Start</th><th>Raiders</th><th>Attacks</th><th>Gold looted</th></tr></thead>
+        <tbody>
+        {% for r in raids %}
+          <tr>
+            <td>{{ r.start_time.strftime('%Y-%m-%d') if r.start_time else '—' }}</td>
+            <td>{{ r.raids_completed }}</td>
+            <td>{{ r.total_attacks }}</td>
+            <td>{{ '{:,}'.format(r.total_capital_gold or 0) }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="muted">No raid weekends synced yet — click Refresh now.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="tab-inactivity" class="tab-panel">
+    <section class="card">
+      <h2>Inactivity alerts <span class="muted">— who missed wars, raids or donations</span></h2>
+      <div class="sort-controls">
+        <label class="field-inline" for="inactivity-sort">
+          <span class="muted">Sort by</span>
+          <select id="inactivity-sort" class="filter-select">
+            <option value="severity" selected>Severity (worst first)</option>
+            <option value="name">Name A &rarr; Z</option>
+            <option value="wars">Wars missed (most first)</option>
+            <option value="attacks">Attacks missed (most first)</option>
+            <option value="raids">Raid weekends missed</option>
+            <option value="donations">Days without donations</option>
+          </select>
+        </label>
+      </div>
+      <div id="inactivity-container" class="muted">Loading…</div>
+    </section>
+  </div>
+
+  <div id="tab-top-members" class="tab-panel">
+    <section class="card">
+      <h2>Top members (by trophies)</h2>
+      <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Role</th><th>TH</th><th>Trophies</th></tr></thead>
+        <tbody>
+        {% for m in members %}
+          <tr>
+            <td>{{ m.name }}</td>
+            <td>{{ m.role or '—' }}</td>
+            <td>{{ m.town_hall or '—' }}</td>
+            <td>{{ m.trophies or '—' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" class="muted">No members synced yet — click Refresh now.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <p class="muted">Full sortable roster on the <a href="/members">Members</a> page.</p>
+    </section>
+  </div>
+{% endblock %}
+{% block scripts %}
+{# Tab data loading is dispatched centrally in static/js/main.js #}
+{% endblock %}
