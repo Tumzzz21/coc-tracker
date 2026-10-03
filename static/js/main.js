@@ -1057,7 +1057,9 @@ async function loadWarLeaderboard() {
   try {
     // Populate once; re-selecting only re-scopes the summary and the table.
     if (!picker.options.length) {
-      warsForPicker = await (await fetch('/api/wars')).json();
+      const warsRes = await fetch('/api/wars');
+      if (!warsRes.ok) throw new Error(`HTTP ${warsRes.status}`);
+      warsForPicker = await warsRes.json();
       warsForPicker.forEach((w) => {
         const option = document.createElement('option');
         option.value = w.id;
@@ -1093,13 +1095,14 @@ async function loadPerWarLeaderboard() {
   const side = enemyToggle && enemyToggle.checked ? 'enemy' : 'clan';
   try {
     const wres = await fetch(`/api/wars/${encodeURIComponent(picker.value)}/leaderboard?side=${side}`);
-    const wdata = await wres.json();
     if (!wres.ok) {
+      const error = await wres.json().catch(() => ({}));
       perWarStarsCache = null;
       perWarBox.classList.add('muted');
-      perWarBox.textContent = wdata.error || 'Could not load that war.';
+      perWarBox.textContent = error.error || `Could not load that war (HTTP ${wres.status}).`;
       return;
     }
+    const wdata = await wres.json();
     perWarStarsCache = wdata.stars || [];
     renderPerWarTable();
   } catch (err) {

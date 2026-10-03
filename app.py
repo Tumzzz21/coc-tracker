@@ -673,7 +673,7 @@ def api_war_leaderboard(war_id):
         return jsonify({"error": "War not found"}), 404
     stars = _query_all(
         """
-        SELECT COALESCE(m.name, MAX(wa.attacker_name)) AS attacker_name,
+        SELECT COALESCE(MAX(m.name), MAX(wa.attacker_name)) AS attacker_name,
                wa.attacker_tag, SUM(wa.stars) AS stars, COUNT(*) AS attacks,
                AVG(wa.destruction) AS avg_destruction
         FROM war_attacks wa
