@@ -636,7 +636,7 @@ def api_capital_leaderboard():
     """Clan Capital loot, grouped per member across the tracked weekends."""
     raid_loot = _query_all(
         """
-        SELECT COALESCE(m.name, MAX(cr.member_name)) AS member_name,
+        SELECT COALESCE(MAX(m.name), MAX(cr.member_name)) AS member_name,
                cr.member_tag, SUM(cr.capital_gold) AS capital_gold,
                SUM(cr.attacks) AS attacks,
                SUM(cr.districts_destroyed) AS districts,

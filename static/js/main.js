@@ -1133,6 +1133,7 @@ async function loadCapitalLeaderboard() {
   if (!box) return;
   try {
     const res = await fetch('/api/capital/leaderboard');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     capitalLootCache = data.raid_loot || [];
     renderCapitalLeaderboard();
