@@ -236,8 +236,8 @@ def api_members():
     return jsonify(_query_all("SELECT * FROM members ORDER BY trophies DESC"))
 
 
-@app.route("/api/members/<path:tag>/profile")
-def api_member_profile(tag):
+@app.route("/api/members/profile")
+def api_member_profile():
     """One member's tracked history: wars, stars, perfects, capital loot.
 
     "Missed attacks" compares the attacks the member actually used in each
@@ -245,6 +245,9 @@ def api_member_profile(tag):
     cover wars that were synced while live, since the warlog exposes no
     per-attack data for older wars.
     """
+    tag = request.args.get("tag", "").strip()
+    if not tag:
+        return jsonify({"error": "tag is required"}), 400
     rows = _query_all("SELECT * FROM members WHERE tag = %s", (tag,))
     if not rows:
         return jsonify({"error": "unknown member"}), 404

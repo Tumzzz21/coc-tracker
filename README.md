@@ -132,7 +132,7 @@ Long pages use in-page tabs (the active tab is kept in the URL hash, e.g.
 | Inactivity (dashboard tab) | Who missed war attacks, skipped raid weekends, or donated nothing on recent scored days — one ranked table + per-war/per-raid detail (`/api/inactivity`, tunable with `?wars=&raids=&donation_days=`) |
 | Wars | *War History* (numbered `#1…#N`, sortable: newest/oldest/result/stars/destruction/opponent — expand a war for our attacks vs the enemy's, grouped per member and numbered/sortable in place) · *Leaderboard* (stars for the one selected war) |
 | Clan Capital | *Participation* (attacked vs didn't attack, choose the weekend) · *History* (expandable per-member breakdown) · *Daily Donations* (coins donated per member per day + clan totals per day) · *Leaderboards* (raid loot per member) |
-| Members | Roster with a sort dropdown: name, role, trophies, Town Hall. Expand **Profile** under any member for their whole tracked history: wars played, attacks used/missed, stars, perfect attacks (3★), avg destruction and capital raid loot (`/api/members/<tag>/profile`) |
+| Members | Roster with a sort dropdown: name, role, trophies, Town Hall. Expand **Profile** under any member for their whole tracked history: wars played, attacks used/missed, stars, perfect attacks (3★), avg destruction and capital raid loot (`/api/members/profile?tag=...`) |
 
 ### Sorting
 

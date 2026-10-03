@@ -744,7 +744,8 @@ async function loadMembers() {
 async function loadMemberProfile(details) {
   const body = details.querySelector('.profile-body');
   try {
-    const res = await fetch(`/api/members/${encodeURIComponent(details.dataset.tag)}/profile`);
+    const params = new URLSearchParams({ tag: details.dataset.tag });
+    const res = await fetch(`/api/members/profile?${params}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const p = await res.json();
     const w = p.wars || {};

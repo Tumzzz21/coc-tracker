@@ -139,7 +139,7 @@ v1.1 tracking additions:
 | GET    | `/api/inactivity` | Inactivity rollup: missed war attacks, skipped raid weekends, donation-less days (`?wars=&raids=&donation_days=`) |
 | GET    | `/api/diagnostics` | Setup report: API key/IP match, DB, timezone, admin key (`?probe=0`, `?fresh=1`) |
 | POST   | `/api/admin/verify` | Check an admin key without side effects |
-| GET    | `/api/members/<tag>/profile` | One member's tracked history: wars, stars, perfects, missed attacks, capital loot |
+| GET    | `/api/members/profile?tag=...` | One member's tracked history: wars, stars, perfects, missed attacks, capital loot |
 
 ## 8. Frontend
 
