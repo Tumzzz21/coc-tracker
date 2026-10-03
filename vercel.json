@@ -1,15 +1,27 @@
 {
-  "version": 2,
   "builds": [
     {
-      "src": "api/index.js",
-      "use": "@vercel/node"
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxDuration": 60
+      }
     }
   ],
   "routes": [
     {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/api/index.js"
+      "dest": "/api/index.py"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron-sync",
+      "schedule": "0 5 * * *"
     }
   ]
 }

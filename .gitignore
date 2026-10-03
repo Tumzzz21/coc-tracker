@@ -1,17 +1,16 @@
-node_modules/
+# Secrets
 .env
-.env.*
-!.env.example
-npm-debug.log*
-data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# Data / OS
 *.sqlite
-*.sqlite-shm
-*.sqlite-wal
-
-# Local development / debugging artifacts
-filter-log.txt
-boot-probe.cjs
-boot-report.txt
-probe-out.txt
-probe-err.txt
-
+.DS_Store
+Thumbs.db

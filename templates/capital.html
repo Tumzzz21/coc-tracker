@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Clan Capital — CoC Attack Tracker{% endblock %}
+{% block nav_capital %}active{% endblock %}
+{% block content %}
+<h1>Clan Capital</h1>
+<div class="page-tabs">
+  <button class="page-tab" data-target="tab-participation" type="button">Participation</button>
+  <button class="page-tab" data-target="tab-history" type="button">History</button>
+  <button class="page-tab" data-target="tab-donations" type="button">Daily Donations</button>
+  <button class="page-tab" data-target="tab-leaderboards" type="button">Leaderboards</button>
+</div>
+
+<div id="tab-participation" class="tab-panel">
+  <section class="card">
+    <h2>Participation</h2>
+    <div class="sort-controls">
+      <label class="field-inline" for="participation-raid">
+        <span class="muted">Raid weekend</span>
+        <select id="participation-raid" class="filter-select"></select>
+      </label>
+    </div>
+    <div id="participation-container" class="muted">Loading participation…</div>
+  </section>
+</div>
+
+<div id="tab-history" class="tab-panel">
+  <section class="card">
+    <h2>Raid weekend history</h2>
+    <div id="capital-container" class="muted">Loading raid weekends…</div>
+  </section>
+</div>
+
+<div id="tab-donations" class="tab-panel">
+  <section class="card">
+    <h2>Capital coin donations by day</h2>
+    <p class="muted" id="contrib-tz-note">Loading…</p>
+    <p class="muted coverage-line" id="contrib-coverage"></p>
+    <div class="sort-controls">
+      <label class="field-inline" for="contrib-day">
+        <span class="muted">Day</span>
+        <select id="contrib-day" class="filter-select"></select>
+      </label>
+      <span class="muted">&#8226; the game only exposes a lifetime total per member, so a day is measured between two readings</span>
+    </div>
+    <div id="contrib-window" class="window-note"></div>
+    <div id="contrib-summary" class="summary-row"></div>
+    <div id="contributions-container" class="muted">Loading donations…</div>
+  </section>
+
+  <section class="card">
+    <h2>So far today <span id="contrib-today-label" class="muted"></span></h2>
+    <p class="muted">Latest reading minus today's first reading. Updated on every sync
+       (older data may be up to <span id="contrib-cadence">6</span> hours behind).</p>
+    <div id="contrib-today" class="muted">Loading…</div>
+  </section>
+
+  <section class="card">
+    <h2>Clan totals per day</h2>
+    <div id="contributions-daily" class="muted">Loading daily totals…</div>
+  </section>
+</div>
+
+<div id="tab-leaderboards" class="tab-panel">
+  <section class="card">
+    <h2>Raid loot leaderboard</h2>
+    <p class="muted">Capital gold looted per member, summed across the raid weekends
+       the API reports in full. The CoC API only returns per-member raid detail for
+       recent weekends, so this is not a lifetime board.</p>
+    <div class="sort-controls">
+      <label class="field-inline" for="capital-leaderboard-sort">
+        <span class="muted">Sort by</span>
+        <select id="capital-leaderboard-sort" class="filter-select">
+          <option value="capital_gold" selected>Capital gold (high &rarr; low)</option>
+          <option value="attacks">Attacks</option>
+          <option value="districts">Districts</option>
+          <option value="weekends">Weekends</option>
+        </select>
+      </label>
+    </div>
+    <div id="capital-leaderboard-note"></div>
+    <div id="capital-leaderboard" class="muted">Loading raid loot…</div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+{# Raid options load lazily via the tab handler in main.js #}
+{% endblock %}

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CoC Attack Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark">&#9876;</span> CoC Attack Tracker</a>
+    <nav class="tab-nav">
+      <a href="/" class="tab-button {% block nav_home %}{% endblock %}">Dashboard</a>
+      <a href="/wars" class="tab-button {% block nav_wars %}{% endblock %}">Wars</a>
+      <a href="/capital" class="tab-button {% block nav_capital %}{% endblock %}">Clan Capital</a>
+      <a href="/members" class="tab-button {% block nav_members %}{% endblock %}">Members</a>
+    </nav>
+    <span id="ph-clock" class="ph-clock" title="Philippine time — the clock daily records are bucketed by">&#127477;&#127477; --:-- PH</span>
+    <span id="sync-status" class="sync-status" title="Auto-sync status"></span>
+    <button id="admin-button" class="ghost-button" type="button" title="Admin key settings">&#9881;</button>
+    <button id="sync-button" class="sync-button" type="button">Refresh now</button>
+  </header>
+  <main>
+    <div id="notice" class="notice hidden"></div>
+    <div id="setup-check" class="setup-check hidden"></div>
+    {% block content %}{% endblock %}
+  </main>
+  <dialog id="admin-dialog" class="admin-dialog">
+    <h2>Admin settings</h2>
+    <p class="muted">
+      The admin key protects <strong>Refresh now</strong> and note editing. It is
+      <code>ADMIN_KEY</code> from <code>.env</code> &mdash; not the Clash of Clans
+      API key. Requests from this machine are trusted automatically while
+      <code>ALLOW_LOCAL_SYNC=1</code>.
+    </p>
+    <label class="field">
+      <span>Admin key</span>
+      <input id="admin-key-input" type="password" autocomplete="off" placeholder="ADMIN_KEY from .env">
+    </label>
+    <p id="admin-key-message" class="muted"></p>
+    <div class="dialog-actions">
+      <button id="admin-save" class="sync-button" type="button">Save &amp; verify</button>
+      <button id="admin-forget" class="sort-button" type="button">Forget key</button>
+      <button id="admin-close" class="sort-button" type="button">Close</button>
+    </div>
+  </dialog>
+  <footer class="site-footer">Data from the official Clash of Clans API &middot; personal tracker</footer>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
