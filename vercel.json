@@ -6,6 +6,10 @@
       "config": {
         "maxDuration": 60
       }
+    },
+    {
+      "src": "static/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
