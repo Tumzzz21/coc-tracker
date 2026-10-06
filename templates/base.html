@@ -8,17 +8,25 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/"><span class="brand-mark">&#9876;</span> CoC Attack Tracker</a>
-    <nav class="tab-nav">
-      <a href="/" class="tab-button {% block nav_home %}{% endblock %}">Dashboard</a>
-      <a href="/wars" class="tab-button {% block nav_wars %}{% endblock %}">Wars</a>
-      <a href="/capital" class="tab-button {% block nav_capital %}{% endblock %}">Clan Capital</a>
-      <a href="/members" class="tab-button {% block nav_members %}{% endblock %}">Members</a>
-    </nav>
-    <span id="ph-clock" class="ph-clock" title="Philippine time — the clock daily records are bucketed by">&#127477;&#127477; --:-- PH</span>
-    <span id="sync-status" class="sync-status" title="Auto-sync status"></span>
-    <button id="admin-button" class="ghost-button" type="button" title="Admin key settings">&#9881;</button>
-    <button id="sync-button" class="sync-button" type="button">Refresh now</button>
+    <div class="header-inner">
+      <a class="brand" href="/"><span class="brand-mark">&#9876;</span> CoC Attack Tracker</a>
+      <nav class="tab-nav" id="tab-nav">
+        <a href="/" class="tab-button {% block nav_home %}{% endblock %}">Dashboard</a>
+        <a href="/wars" class="tab-button {% block nav_wars %}{% endblock %}">Wars</a>
+        <a href="/capital" class="tab-button {% block nav_capital %}{% endblock %}">Clan Capital</a>
+        <a href="/members" class="tab-button {% block nav_members %}{% endblock %}">Members</a>
+      </nav>
+      <div class="header-actions">
+        <span id="ph-clock" class="ph-clock" title="Server clock — daily records are bucketed by this">&#127477;&#127477; --:-- PH</span>
+        <span id="sync-status" class="sync-status" title="Auto-sync status"></span>
+        <button id="admin-button" class="ghost-button" type="button" title="Admin key settings">&#9881;</button>
+        <button id="sync-button" class="sync-button" type="button">Refresh now</button>
+      </div>
+    </div>
+    <div id="mobile-menu" class="mobile-menu hidden">
+      <div class="mobile-tabs" id="mobile-tabs"></div>
+      <div class="mobile-status-row" id="mobile-status"></div>
+    </div>
   </header>
   <main>
     <div id="notice" class="notice hidden"></div>

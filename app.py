@@ -866,6 +866,44 @@ def _inactivity_payload(wars_n, raids_n, donation_days):
 
 
 
+REFRESH_COOLDOWN_SECONDS = int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "60"))
+
+@app.route("/api/refresh", methods=["POST"])
+def api_refresh():
+    """Viewer-friendly: return the latest cached data without requiring a key.
+
+    If the last sync finished less than ``REFRESH_COOLDOWN_SECONDS`` seconds ago,
+    return the current status immediately (no CoC API call, no admin key) and mark
+    ``replay: true`` so the UI knows it is showing cached data. If the cooldown has
+    elapsed, still return cached data but mark ``replay: false`` so the UI can tell
+    the owner that a real sync would be needed for fresher figures.
+    """
+    last = runtime_state.last_sync()
+    cooldown = REFRESH_COOLDOWN_SECONDS
+    replay = False
+    age = None
+    if last and isinstance(last.get("at"), str):
+        try:
+            from datetime import datetime, timezone
+            ts = datetime.fromisoformat(last["at"])
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            age = (datetime.now(timezone.utc) - ts).total_seconds()
+        except Exception:
+            age = None
+    replay = (age is not None and 0 <= age < cooldown)
+    return jsonify({
+        "status": "ok",
+        "last_sync": last,
+        "replay": replay,
+        "cooldown_seconds": cooldown,
+        "auto_sync": {
+            "enabled": bool((os.environ.get("AUTO_SYNC_MINUTES", "30")) and os.environ.get("AUTO_SYNC_MINUTES", "30") != "0" and not os.environ.get("VERCEL")),
+            "minutes": int(os.environ.get("AUTO_SYNC_MINUTES", "30")),
+        },
+    })
+
+
 @app.route("/api/sync", methods=["POST"])
 def api_sync():
     if not _admin_ok():
@@ -894,10 +932,16 @@ def api_cron_sync():
         return jsonify({"error": "Unauthorized"}), 401
     ok, result = syncer.run_full_sync()
     runtime_state.record_sync(ok, result, source="cron")
+    app.logger.info(
+        "cron-sync %s: %s | CRON_SECRET=%s | client=%s",
+        "ok" if ok else "failed",
+        (result if isinstance(result, str) else str(result)),
+        bool(os.environ.get("CRON_SECRET")),
+        request.remote_addr,
+    )
     if not ok:
         return jsonify({"error": result}), 502
     return jsonify({"status": "ok", "synced": result})
-
 
 @app.route("/api/notes", methods=["POST"])
 def api_notes():
