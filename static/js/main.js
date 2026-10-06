@@ -179,6 +179,12 @@ document.addEventListener('DOMContentLoaded', () => {
   tickPhClock();
   setInterval(tickPhClock, 1000);
 
+  // Mirror the desktop header into a mobile bottom tab bar + status line.
+  setupMobileMenu();
+
+  // Start the 5-minute auto-refresh (only after the status line has loaded).
+  ensureAutoRefreshStarted();
+
   // Keep the header status and the live war card fresh while the page is open.
   setInterval(() => {
     loadStatus();
@@ -186,25 +192,195 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 60000);
 });
 
-// ---- Refresh now (admin only) ----
+// ---- Auto-refresh every 5 minutes (reads from own cached API, never CoC API) ----
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+let autoRefreshTimer = null;
+let lastAutoRefreshAt = 0;
+
+function startAutoRefresh() {
+  stopAutoRefresh(); // avoid stacking
+  autoRefreshTimer = setInterval(() => {
+    // Only refresh if the tab is visible and we are not mid-refresh.
+    if (document.hidden) return;
+    if (performance.now() - lastAutoRefreshAt < 30000) return; // avoid rapid loops
+    lastAutoRefreshAt = performance.now();
+    autoRefreshNow(false);
+  }, AUTO_REFRESH_MS);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+async function autoRefreshNow(silent) {
+  try {
+    const res = await fetch('/api/refresh', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      lastAutoRefreshAt = performance.now();
+      // Update the header status line (last synced time).
+      loadStatus();
+      // Refresh the live bits in place.
+      refreshVisibleData();
+      if (!silent) {
+        showNotice('Auto-refreshed — data is up to date.', false);
+      }
+      renderSetupCheck(true);
+    }
+  } catch (err) {
+    // Silently ignore; the next interval will retry. Don't spam the user.
+    if (!silent) {
+      // Only show if the user is looking.
+      if (!document.hidden) showNotice('Auto-refresh failed: ' + err.message, true);
+    }
+  }
+}
+
+// Pause when the tab is hidden; refresh immediately when it becomes visible again.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopAutoRefresh();
+  } else {
+    // Refresh immediately on return so the user sees fresh data.
+    autoRefreshNow(true);
+    startAutoRefresh();
+  }
+});
+
+// Clean up on unload so the interval doesn't stack if the page is re-visited in the same process.
+window.addEventListener('pagehide', stopAutoRefresh);
+window.addEventListener('beforeunload', stopAutoRefresh);
+
+// Kick off after the page has painted once and the status line has loaded.
+let autoRefreshStarted = false;
+async function ensureAutoRefreshStarted() {
+  if (autoRefreshStarted) return;
+  autoRefreshStarted = true;
+  try {
+    // Prime the status line first so the interval can update it.
+    await loadStatus();
+  } catch (e) { /* ignore */ }
+  startAutoRefresh();
+}
+
+// ---- Mobile menu: bottom tab bar + compact status line ----
+const MOBILE_BP = 820;
+let mobileMenuBuilt = false;
+
+function setupMobileMenu() {
+  if (mobileMenuBuilt) return;
+  mobileMenuBuilt = true;
+
+  const nav = document.querySelector('#tab-nav');
+  const mobileTabs = document.querySelector('#mobile-tabs');
+  const mobileStatus = document.querySelector('#mobile-status');
+  if (!nav || !mobileTabs) return;
+
+  // Clone nav buttons into the mobile tab bar.
+  nav.querySelectorAll('.tab-button').forEach((btn) => {
+    const clone = btn.cloneNode(true);
+    clone.addEventListener('click', () => {
+      window.location.href = btn.getAttribute('href');
+    });
+    mobileTabs.appendChild(clone);
+  });
+
+  // On mobile, show the bottom menu. On wide screens, hide it.
+  const headerActions = document.querySelector('.header-actions');
+  const mobileMenu = document.querySelector('#mobile-menu');
+
+  function applyVisibility() {
+    const wide = window.matchMedia(`(min-width: ${MOBILE_BP + 1}px)`).matches;
+    if (wide) {
+      if (mobileMenu) mobileMenu.classList.add('hidden');
+      if (headerActions) headerActions.style.display = '';
+    } else {
+      if (mobileMenu) mobileMenu.classList.remove('hidden');
+      if (headerActions) headerActions.style.display = 'none';
+      // Refresh the mobile status line immediately.
+      updateMobileStatus();
+    }
+  }
+
+  applyVisibility();
+  window.matchMedia(`(min-width: ${MOBILE_BP + 1}px)`).addEventListener('change', applyVisibility);
+  window.addEventListener('resize', applyVisibility);
+  applyVisibility();
+}
+
+function updateMobileStatus() {
+  const statusEl = document.querySelector('#sync-status');
+  const mobileStatus = document.querySelector('#mobile-status');
+  if (!statusEl || !mobileStatus) return;
+  const text = statusEl.textContent || '';
+  const live = statusEl.classList.contains('live');
+  let html = '';
+  if (text) html += `<span class="sync-status${live ? ' live' : ''}">${esc(text)}</span>`;
+  html += '<span class="sync-mini">';
+  html += '<span class="ph-clock" id="ph-clock">';
+  html += document.querySelector('#ph-clock') ? document.querySelector('#ph-clock').textContent : '';
+  html += '</span></span>';
+  mobileStatus.innerHTML = html;
+}
+
+// ---- Refresh button ----
+// Viewers: hit the public /api/refresh (cached data, no key, server-side cooldown).
+// Owners: if an admin key is stored, pressing and holding (or shift-click) triggers
+// a real sync via /api/sync. The label changes so a visitor is never confused.
 if (syncButton) {
-  syncButton.addEventListener('click', async () => {
-    if (!(await ensureAdmin())) return;
+  syncButton.addEventListener('click', async (e) => {
+    const doRealSync = e.shiftKey || e.metaKey || e.ctrlKey;
+    if (doRealSync) {
+      // Real sync still needs the admin key.
+      if (!(await ensureAdmin())) {
+        showNotice('Real sync needs the admin key (ADMIN_KEY in .env).', true);
+        return;
+      }
+      syncButton.disabled = true;
+      syncButton.textContent = 'Syncing…';
+      try {
+        const res = await apiFetch('/api/sync', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          showNotice(`Sync failed: ${data.error || res.status}`, true);
+        } else {
+          showNotice('Sync complete: ' + formatSyncSummary(data.synced));
+          refreshVisibleData();
+          loadStatus();
+          renderSetupCheck(true);
+        }
+      } catch (err) {
+        showNotice('Sync failed: ' + err.message, true);
+      } finally {
+        syncButton.disabled = false;
+        syncButton.textContent = 'Refresh now';
+      }
+      return;
+    }
+
+    // Viewer path: public refresh (cached data, no key needed).
     syncButton.disabled = true;
-    syncButton.textContent = 'Syncing…';
+    syncButton.textContent = 'Refreshing…';
     try {
-      const res = await apiFetch('/api/sync', { method: 'POST' });
+      const res = await fetch('/api/refresh', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) {
-        showNotice(`Sync failed: ${data.error || res.status}`, true);
+        showNotice(`Refresh failed: ${data.error || res.status}`, true);
       } else {
-        showNotice('Sync complete: ' + formatSyncSummary(data.synced));
+        const replayLabel = data.replay
+          ? ' (shown from cache — fresh shortly)'
+          : ' (cache is stale — owner sync needed for fresher figures)';
+        showNotice('Data refreshed' + replayLabel + '.', false);
+        // Update the live bits without a full reload.
         refreshVisibleData();
         loadStatus();
         renderSetupCheck(true);
       }
     } catch (err) {
-      showNotice('Sync failed: ' + err.message, true);
+      showNotice('Refresh failed: ' + err.message, true);
     } finally {
       syncButton.disabled = false;
       syncButton.textContent = 'Refresh now';

@@ -1,16 +1,25 @@
-# Secrets
-.env
+# Ignore everything at the repository root by default.
+# Only the files/folders explicitly allowed below will be tracked.
+#
+# This repository should contain ONLY the CoC Attack Tracker files.
+# Everything else (other projects in the workspace, temp files, caches, etc.)
+# must not be accidentally staged or committed.
 
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
+# Root-level: ignore all non-dotfile entries.
+/*
 
-# Node
-node_modules/
+# Allow the CoC Attack Tracker root files.
+!.env.example
+!VERCEL_DEPLOY_NOTES.md
+!app.py
+!vercel.json
+!static/
+!templates/
+!.gitignore
 
-# Data / OS
-*.sqlite
-.DS_Store
-Thumbs.db
+# Inside templates/: allow only base.html, ignore the rest.
+# (capital.html, index.html, members.html, wars.html are other-project templates.)
+templates/*
+!templates/base.html
+
+# (static/ is fully allowed: css/ and js/ and all their contents.)
