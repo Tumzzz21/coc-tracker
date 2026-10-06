@@ -1,0 +1,101 @@
+name: CoC Attack Tracker — Cron Sync
+
+# ---------------------------------------------------------------------------
+# Replaces the Vercel Cron job that Vercel Hobby cannot run at the requested
+# frequency. This workflow calls the production /api/cron-sync endpoint every
+# 30 minutes (UTC) and supports manual dispatch for on-demand runs.
+#
+# Authentication
+#   - The workflow sends `Authorization: Bearer <CRON_SECRET>` using the
+#     GitHub Actions secret `CRON_SECRET`. The app's /api/cron-sync endpoint
+#     still requires that exact Bearer token (or the admin key), so nothing
+#     about the app's auth model changes.
+#
+# Production URL
+#   - `PRODUCTION_URL` is a GitHub repository variable (not a secret). It
+#     should be set to the production Vercel URL, e.g.
+#       https://your-project.vercel.app
+#     It must NOT include a trailing slash. If you prefer to keep the URL in
+#     a secret instead, set `PRODUCTION_URL_SECRET` and update the workflow
+#     to use `secrets.PRODUCTION_URL_SECRET`.
+#
+# Schedule
+#   - Runs every 30 minutes according to UTC. GitHub scheduled workflows can
+#     sometimes be delayed (often by a few minutes, occasionally more during
+#     high load). Do not rely on exact wall-clock timing.
+#
+# Manual run
+#   - Open the Actions tab, choose "CoC Attack Tracker — Cron Sync", click
+#     "Run workflow", then "Run workflow" again. The manual run uses the same
+#     secrets and repository variables as the scheduled runs.
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    # Every 30 minutes, UTC. Equivalent to `*/30 * * * *`.
+    - cron: '*/30 * * * *'
+
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    name: Call /api/cron-sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger cron sync
+        id: trigger
+        env:
+          # Repository variable (not a secret) holding the production URL.
+          # Set this under Settings -> Secrets and variables -> Actions ->
+          # Variables -> Repository variables as `PRODUCTION_URL`.
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          # GitHub Actions secret holding the CRON_SECRET value configured
+          # in the Vercel/Flask app environment. Add it under Settings ->
+          # Secrets and variables -> Actions -> Secrets as `CRON_SECRET`.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PRODUCTION_URL" ]; then
+            echo "::error::PRODUCTION_URL repository variable is not set."
+            echo "::error::Add it under Settings -> Secrets and variables -> Actions -> Variables."
+            exit 1
+          fi
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is not set."
+            echo "::error::Add it under Settings -> Secrets and variables -> Actions -> Secrets."
+            exit 1
+          fi
+
+          # Strip any trailing slash so the path concatenation is predictable.
+          URL="${PRODUCTION_URL%/}"
+          ENDPOINT="${URL}/api/cron-sync"
+
+          echo "Calling ${ENDPOINT}"
+
+          HTTP_RESPONSE=$(curl --fail --silent --show-error --location \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --request POST "${ENDPOINT}" || true)
+
+          # curl --write-out appends the HTTP status code to the response body.
+          # Split them back apart.
+          HTTP_STATUS="${HTTP_RESPONSE: -3}"
+          RESPONSE_BODY="${HTTP_RESPONSE%???}"
+
+          echo "HTTP status: ${HTTP_STATUS}"
+
+          # Do not echo the secret-bearing Authorization header or the full
+          # response body in a way that could expose the token.
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Cron sync succeeded (HTTP ${HTTP_STATUS})."
+            echo "Response: ${RESPONSE_BODY}"
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Cron sync failed (HTTP ${HTTP_STATUS})."
+            echo "Response: ${RESPONSE_BODY}"
+            echo "result=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
