@@ -29,17 +29,25 @@
 4. Visit https://<project>.vercel.app/api/status — "auto-sync by Vercel Cron" should show,
    and "last:" should update every ~30 min.
 
-## Vercel cron limits (Hobby plan)
+## Vercel cron limits
 
-Vercel Cron is available on Hobby, but:
-- The minimum interval is 1 minute. "*/30 * * * *" (every 30 min) is fine.
-- Cron runs are counted as function invocations. Very frequent cron + heavy sync can hit
-  Hobby function-duration / invocation limits.
-- Cron only runs on production deployments (preview deployments don't run crons).
-- If Vercel ever restricts cron on Hobby, fall back to an external pinger:
-  * cron-job.org (free) hitting https://<project>.vercel.app/api/cron-sync
-    with header `Authorization: Bearer <CRON_SECRET>`
-  * or a GitHub Actions scheduled workflow (on a schedule, curl the endpoint).
+- Cron jobs only run on **production deployments** (preview deployments don't
+  run crons), and Vercel does **not** retry failed cron invocations — check the
+  function logs / `/api/status` instead.
+- Official plan limits (vercel.com/docs/cron-jobs): the **Hobby** plan only
+  allows schedules that run **once per day** — a more frequent expression such
+  as `*/30 * * * *` fails at **deploy time** with "Hobby accounts are limited
+  to daily cron jobs". **Pro** (and Enterprise) allow per-minute schedules.
+- This project deploys `*/30 * * * *` (every 30 min) and has already deployed
+  that exact `crons` block successfully in production, so the current plan
+  accepts it. If a deploy ever fails with the daily-limit error, either change
+  the schedule to once daily (e.g. `"0 12 * * *"`) or move to a plan that
+  allows frequent crons.
+- Cron runs are counted as function invocations. Very frequent cron + heavy
+  sync can hit function-duration / invocation limits.
+- Fallback if Vercel Cron is ever unusable: an external pinger such as
+  cron-job.org hitting https://<project>.vercel.app/api/cron-sync
+  with header `Authorization: Bearer <CRON_SECRET>`.
 
 ## CoC API IP whitelist (the 403 problem)
 
