@@ -866,41 +866,97 @@ def _inactivity_payload(wars_n, raids_n, donation_days):
 
 
 
-REFRESH_COOLDOWN_SECONDS = int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "60"))
+# How long a browser refresh may go without triggering a real sync (minutes).
+# Enforced against the durable sync_log, so it holds across serverless
+# instances: at most one sync per cooldown window no matter how many visitors
+# hit the site. A failed attempt is remembered per process so a broken
+# database or a dead CoC API cannot turn every request into a failing sync.
+AUTO_SYNC_COOLDOWN_MIN = int(os.environ.get("AUTO_SYNC_COOLDOWN_MIN", "30"))
+AUTO_SYNC_RETRY_MIN = 5
 
-@app.route("/api/refresh", methods=["POST"])
-def api_refresh():
-    """Viewer-friendly: return the latest cached data without requiring a key.
+_refresh_sync_lock = threading.Lock()
+_refresh_sync_retry_after = 0.0
 
-    If the last sync finished less than ``REFRESH_COOLDOWN_SECONDS`` seconds ago,
-    return the current status immediately (no CoC API call, no admin key) and mark
-    ``replay: true`` so the UI knows it is showing cached data. If the cooldown has
-    elapsed, still return cached data but mark ``replay: false`` so the UI can tell
-    the owner that a real sync would be needed for fresher figures.
+
+def _last_sync_entry():
+    """Most recent sync_log row (durable), or None when unreadable/empty."""
+    try:
+        rows = _query_all("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1")
+    except Exception:
+        return None
+    return rows[0] if rows else None
+
+
+def _minutes_since(entry):
+    """Age of a sync_log row in minutes, or None when it cannot be parsed."""
+    value = entry.get("created_at") if isinstance(entry, dict) else None
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:  # MySQL hands back naive datetimes
+        value = value.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - value).total_seconds() / 60.0
+
+
+def _try_auto_sync():
+    """Run one full sync if the cooldown has elapsed.
+
+    Returns (synced, summary_or_error). Never raises; a failure is reported to
+    the caller so the UI can keep showing the cached rows.
     """
-    last = runtime_state.last_sync()
-    cooldown = REFRESH_COOLDOWN_SECONDS
-    replay = False
-    age = None
-    if last and isinstance(last.get("at"), str):
-        try:
-            from datetime import datetime, timezone
-            ts = datetime.fromisoformat(last["at"])
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            age = (datetime.now(timezone.utc) - ts).total_seconds()
-        except Exception:
-            age = None
-    replay = (age is not None and 0 <= age < cooldown)
+    global _refresh_sync_retry_after
+    now = datetime.now(timezone.utc).timestamp()
+    if now < _refresh_sync_retry_after:
+        return False, None
+
+    # Non-blocking so concurrent requests in one process never stack syncs.
+    if not _refresh_sync_lock.acquire(blocking=False):
+        return False, None
+    try:
+        # Re-check after acquiring: another request may have just synced.
+        entry = _last_sync_entry()
+        age = _minutes_since(entry) if entry else None
+        if age is not None and age < AUTO_SYNC_COOLDOWN_MIN and not (
+            entry.get("status") == "error"
+        ):
+            return False, None
+        ok, result = syncer.run_full_sync()
+        runtime_state.record_sync(ok, result, source="refresh")
+        if not ok:
+            # Back off briefly: a broken API must not turn every click into
+            # another failing sync.
+            _refresh_sync_retry_after = now + AUTO_SYNC_RETRY_MIN * 60
+        return bool(ok), result
+    except Exception as exc:  # defensive: keep the viewer path alive
+        _refresh_sync_retry_after = now + AUTO_SYNC_RETRY_MIN * 60
+        return False, str(exc)
+    finally:
+        _refresh_sync_lock.release()
+
+
+@app.route("/api/refresh", methods=["GET", "POST"])
+def api_refresh():
+    """Viewer-friendly refresh: shows data, and syncs it once it goes stale.
+
+    No key is required. When the last recorded sync is older than
+    ``AUTO_SYNC_COOLDOWN_MIN`` minutes (default 30), a real sync runs here using
+    the server's own credentials; the cooldown is checked against the durable
+    sync_log so it holds across serverless instances. Inside the cooldown the
+    request returns the cached rows, which are at most one cooldown old.
+
+    An owner who needs an immediate sync (a war just ended) still has
+    ``POST /api/sync`` with the admin key, which always runs.
+    """
+    synced, detail = _try_auto_sync()
     return jsonify({
         "status": "ok",
-        "last_sync": last,
-        "replay": replay,
-        "cooldown_seconds": cooldown,
-        "auto_sync": {
-            "enabled": bool((os.environ.get("AUTO_SYNC_MINUTES", "30")) and os.environ.get("AUTO_SYNC_MINUTES", "30") != "0" and not os.environ.get("VERCEL")),
-            "minutes": int(os.environ.get("AUTO_SYNC_MINUTES", "30")),
-        },
+        # True when this request triggered a real CoC sync.
+        "synced": synced,
+        # Sync summary (when synced) or the error string (when it failed).
+        "summary": detail if synced else None,
+        "error": None if synced else (detail if isinstance(detail, str) else None),
+        "replayed": not synced,
+        "cooldown_minutes": AUTO_SYNC_COOLDOWN_MIN,
+        "last_sync": _last_sync_entry(),
     })
 
 

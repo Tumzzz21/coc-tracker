@@ -4,13 +4,16 @@
 
 1. Header/navbar: one clean row on desktop (brand · nav links · clock+sync+refresh+settings),
    mobile bottom tab bar + compact status line, sticky header no longer hides content.
-2. Viewers no longer see an admin-key prompt. "Refresh now" now **syncs live data** whenever
-   this browser has ADMIN_KEY saved (the key dialog opens if not); without a key it still
-   shows cached data, and shift/ctrl-click forces the real-sync path.
-3. Client-side auto-refresh every 5 minutes. Browsers with ADMIN_KEY saved pull live data
-   at most once every 30 minutes (throttled via localStorage); others re-read the cache.
-   Pauses when the tab is hidden, refreshes on return, cleans up on unload. This replaces
-   the AUTO_SYNC_MINUTES background thread, which cannot run under serverless.
+2. "Refresh now" syncs live data with no key anywhere: POST /api/refresh runs a
+   full CoC sync when the last recorded sync is older than
+   AUTO_SYNC_COOLDOWN_MIN (default 30) and otherwise returns the cached rows.
+   A forced instant sync is shift/ctrl/cmd-click or the ⚙ gear, which use
+   POST /api/sync with X-Admin-Key. Viewers never see an admin-key prompt.
+3. Client-side auto-refresh every 5 minutes. It calls the same key-free
+   endpoint; the server decides whether a sync is due, so the schedule is
+   server-side and identical for every browser. Pauses when the tab is hidden,
+   refreshes on return, cleans up on unload. This replaces the
+   AUTO_SYNC_MINUTES background thread, which cannot run under serverless.
 4. vercel.json declares a daily Vercel Cron job: `0 16 * * *` UTC (midnight
    Philippines). The Vercel **Hobby** plan rejects schedules that run more
    than once per day at deploy time, which is why the earlier every-30-min
@@ -18,17 +21,24 @@
 
 ## Production refresh cadence
 
-Three autoscale paths now keep data moving, in order of independence:
+Nothing manual is needed any more — no key in the browser, no env change:
 
-1. **Vercel Cron** — daily at midnight PH. Runs with no browser open.
-2. **Owner browser** — with ADMIN_KEY saved, opening the page or any 5-minute
-   auto-refresh syncs live data (max one real sync per 30 min).
-3. **Owner click** — "Refresh now" syncs immediately.
+1. **Vercel Cron** — daily at midnight PH, runs with no browser open.
+2. **`POST /api/refresh`** — the "Refresh now" button and the 5-minute
+   auto-refresh call this. It runs one full CoC sync when the last recorded
+   sync (durable `sync_log` row) is older than `AUTO_SYNC_COOLDOWN_MIN`
+   (default 30) and otherwise returns the cached rows, which are never more
+   than one cooldown old. Identical for every browser; the cooldown is
+   server-side, so traffic cannot amplify CoC API usage beyond one sync per
+   window. Failed attempts back off 5 minutes per process.
+3. **Forced sync (owner only)** — shift/ctrl/cmd-click, or the ⚙ settings
+   dialog, uses `POST /api/sync` with `X-Admin-Key`, which always runs.
 
-For a guaranteed 30-minute server-side cadence, the Hobby plan is not enough:
-either upgrade to Pro (cron `*/30 * * * *`) or point a free external pinger at
-`https://<project>.vercel.app/api/cron-sync` with `Authorization: Bearer $CRON_SECRET`.
-Nothing else changes — `/api/cron-sync` already accepts Vercel's bearer format.
+For a guaranteed 30-minute *server-side* cadence with no browser open, the
+Hobby plan is still not enough: upgrade to Pro (cron `*/30 * * * *`) or point a
+free external pinger at `https://<project>.vercel.app/api/cron-sync` with
+`Authorization: Bearer $CRON_SECRET`. Nothing else changes — the endpoint
+already accepts Vercel's bearer format.
 
 ## Env vars to set/change on Vercel
 
@@ -37,16 +47,24 @@ Nothing else changes — `/api/cron-sync` already accepts Vercel's bearer format
 - COC_API_TOKEN, CLAN_TAG, CLAN_NAME, DATABASE_URL, ADMIN_KEY — already needed; confirm they're set.
 - AUTO_SYNC_MINUTES — keep at 30 (local only; Vercel uses the cron job).
 - ALLOW_LOCAL_SYNC=1 — fine for local; on Vercel only the cron secret matters for sync.
+- AUTO_SYNC_COOLDOWN_MIN — optional, defaults to 30. Minimum age of the last
+  sync before a viewer's refresh triggers a new one. Raise it to trim CoC API
+  usage, lower it for fresher data (each window is at most one sync).
 
-## How to confirm the cron is working
+## How to confirm the sync is working
 
-1. Deploy. Wait for the next 16:00 UTC mark (midnight PH), or trigger it
-   manually: Vercel dashboard > Project > Cron Jobs > "Run" button.
-2. Open Vercel dashboard > Project > Cron Jobs — you should see runs scheduled.
-3. Open Vercel dashboard > Project > Logs — filter by `api/cron-sync`. Look for lines like:
+1. Deploy. Open the site and click **Refresh now**:
+   - within the cooldown → "Data is up to date (synced within the last 30 min)."
+   - after the cooldown → "Sync complete: members: …" with real numbers.
+2. Vercel dashboard > Project > Cron Jobs — the job is listed as Enabled, with
+   a "Run" button for a manual invocation.
+3. Vercel dashboard > Project > Logs — filter by `api/cron-sync`. Look for
    `cron-sync ok: ...` or `cron-sync failed: ...`.
-4. Visit https://<project>.vercel.app/api/status - "auto-sync by Vercel Cron" should show,
-   and "last:" should update once a day (after 16:00 UTC).
+4. Visit https://<project>.vercel.app/api/status — `last_sync` and `recent`
+   come from the durable sync_log, so they show the real last sync regardless
+   of which serverless instance answers. `last_attempt` is in-memory and may
+   be empty on a cold instance (that field is only there to explain failures
+   when the database itself is down).
 
 ## Vercel cron limits
 
