@@ -4,15 +4,31 @@
 
 1. Header/navbar: one clean row on desktop (brand · nav links · clock+sync+refresh+settings),
    mobile bottom tab bar + compact status line, sticky header no longer hides content.
-2. Viewers no longer see an admin-key prompt. The "Refresh now" button uses the public
-   POST /api/refresh endpoint (cached data, server-side 60s cooldown, no key).
-   Real sync still needs ADMIN_KEY (shift/ctrl-click "Refresh now", or the ⚙ gear icon).
-3. Client-side auto-refresh every 5 minutes from the app's own cached API (not the CoC API),
-   pauses when the tab is hidden, refreshes on return, cleans up on unload.
+2. Viewers no longer see an admin-key prompt. "Refresh now" now **syncs live data** whenever
+   this browser has ADMIN_KEY saved (the key dialog opens if not); without a key it still
+   shows cached data, and shift/ctrl-click forces the real-sync path.
+3. Client-side auto-refresh every 5 minutes. Browsers with ADMIN_KEY saved pull live data
+   at most once every 30 minutes (throttled via localStorage); others re-read the cache.
+   Pauses when the tab is hidden, refreshes on return, cleans up on unload. This replaces
+   the AUTO_SYNC_MINUTES background thread, which cannot run under serverless.
 4. vercel.json declares a daily Vercel Cron job: `0 16 * * *` UTC (midnight
    Philippines). The Vercel **Hobby** plan rejects schedules that run more
    than once per day at deploy time, which is why the earlier every-30-min
    schedule was replaced. Cron endpoint logs whether it succeeded.
+
+## Production refresh cadence
+
+Three autoscale paths now keep data moving, in order of independence:
+
+1. **Vercel Cron** — daily at midnight PH. Runs with no browser open.
+2. **Owner browser** — with ADMIN_KEY saved, opening the page or any 5-minute
+   auto-refresh syncs live data (max one real sync per 30 min).
+3. **Owner click** — "Refresh now" syncs immediately.
+
+For a guaranteed 30-minute server-side cadence, the Hobby plan is not enough:
+either upgrade to Pro (cron `*/30 * * * *`) or point a free external pinger at
+`https://<project>.vercel.app/api/cron-sync` with `Authorization: Bearer $CRON_SECRET`.
+Nothing else changes — `/api/cron-sync` already accepts Vercel's bearer format.
 
 ## Env vars to set/change on Vercel
 

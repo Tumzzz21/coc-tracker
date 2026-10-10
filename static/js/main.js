@@ -192,18 +192,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 60000);
 });
 
-// ---- Auto-refresh every 5 minutes (reads from own cached API, never CoC API) ----
-const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+// ---- Auto-refresh every 5 minutes ----
+// Everyone re-reads the cached view every 5 minutes (cheap, no CoC calls).
+// Browsers that have saved the admin key also pull live CoC data, throttled
+// to one real sync per 30 minutes. The timestamp lives in localStorage so the
+// cadence survives page reloads. This mirrors what AUTO_SYNC_MINUTES did when
+// the app ran as a persistent process; on serverless there is no such process,
+// so the owner's browser drives the schedule instead.
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes: re-render cadence
+const AUTO_SYNC_EVERY_MS = 30 * 60 * 1000; // 30 minutes: live-sync cadence
+const AUTO_SYNC_TS_KEY = 'coc-auto-sync-at';
 let autoRefreshTimer = null;
 let lastAutoRefreshAt = 0;
+
+const lastSyncAt = () => Number(localStorage.getItem(AUTO_SYNC_TS_KEY) || 0) || 0;
+const noteSyncAt = () => localStorage.setItem(AUTO_SYNC_TS_KEY, String(Date.now()));
 
 function startAutoRefresh() {
   stopAutoRefresh(); // avoid stacking
   autoRefreshTimer = setInterval(() => {
     // Only refresh if the tab is visible and we are not mid-refresh.
     if (document.hidden) return;
-    if (performance.now() - lastAutoRefreshAt < 30000) return; // avoid rapid loops
-    lastAutoRefreshAt = performance.now();
+    if (Date.now() - lastAutoRefreshAt < 30000) return; // avoid rapid loops
+    lastAutoRefreshAt = Date.now();
     autoRefreshNow(false);
   }, AUTO_REFRESH_MS);
 }
@@ -215,19 +226,39 @@ function stopAutoRefresh() {
   }
 }
 
+// One live sync for browsers that own the admin key, at most every 30 minutes.
+// Returns true when a real sync happened (so the caller knows numbers moved).
+async function maybeAutoSync() {
+  if (!adminKeyValue()) return false;
+  if (Date.now() - lastSyncAt() < AUTO_SYNC_EVERY_MS) return false;
+  try {
+    const res = await apiFetch('/api/sync', { method: 'POST' });
+    noteSyncAt();
+    const data = await res.json().catch(() => null);
+    if (data && data.synced) {
+      showNotice('Auto-synced live data: ' + formatSyncSummary(data.synced), false);
+    }
+    return true;
+  } catch (err) {
+    // apiFetch throws on 401; drop a rejected key so we stop retrying it.
+    if (/admin key/i.test(String(err && err.message))) {
+      localStorage.removeItem(ADMIN_KEY_STORAGE);
+    }
+    return false; // fall back to the cached view
+  }
+}
+
 async function autoRefreshNow(silent) {
   try {
+    await maybeAutoSync();
     const res = await fetch('/api/refresh', { method: 'POST' });
     const data = await res.json();
     if (res.ok && data.status === 'ok') {
-      lastAutoRefreshAt = performance.now();
+      lastAutoRefreshAt = Date.now();
       // Update the header status line (last synced time).
       loadStatus();
       // Refresh the live bits in place.
       refreshVisibleData();
-      if (!silent) {
-        showNotice('Auto-refreshed — data is up to date.', false);
-      }
       renderSetupCheck(true);
     }
   } catch (err) {
@@ -263,6 +294,8 @@ async function ensureAutoRefreshStarted() {
     // Prime the status line first so the interval can update it.
     await loadStatus();
   } catch (e) { /* ignore */ }
+  // Refresh right away so an open tab shows live numbers without waiting 5 min.
+  autoRefreshNow(true);
   startAutoRefresh();
 }
 
@@ -327,60 +360,46 @@ function updateMobileStatus() {
 }
 
 // ---- Refresh button ----
-// Viewers: hit the public /api/refresh (cached data, no key, server-side cooldown).
-// Owners: if an admin key is stored, pressing and holding (or shift-click) triggers
-// a real sync via /api/sync. The label changes so a visitor is never confused.
+// A real sync talks to the CoC API and needs the admin key. When this browser
+// has a key saved, a plain click syncs live data (what the owner expects);
+// without a key it asks for one first. Visitors (no key) stay on the cached
+// view so the CoC API cannot be hammered through this site. Shift/ctrl/cmd
+// always forces the real-sync path first.
 if (syncButton) {
   syncButton.addEventListener('click', async (e) => {
-    const doRealSync = e.shiftKey || e.metaKey || e.ctrlKey;
-    if (doRealSync) {
-      // Real sync still needs the admin key.
-      if (!(await ensureAdmin())) {
-        showNotice('Real sync needs the admin key (ADMIN_KEY in .env).', true);
+    const forced = e.shiftKey || e.metaKey || e.ctrlKey;
+    let haveKey = Boolean(adminKeyValue());
+    if (!haveKey) {
+      // Ask for the key; if the owner declines or cancels, keep it a viewer refresh.
+      if (forced || await ensureAdmin()) {
+        haveKey = Boolean(adminKeyValue());
+      }
+    }
+    if (!haveKey) {
+      if (forced) {
+        showNotice('Real sync needs the admin key (ADMIN_KEY).', true);
         return;
       }
-      syncButton.disabled = true;
-      syncButton.textContent = 'Syncing…';
-      try {
-        const res = await apiFetch('/api/sync', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) {
-          showNotice(`Sync failed: ${data.error || res.status}`, true);
-        } else {
-          showNotice('Sync complete: ' + formatSyncSummary(data.synced));
-          refreshVisibleData();
-          loadStatus();
-          renderSetupCheck(true);
-        }
-      } catch (err) {
-        showNotice('Sync failed: ' + err.message, true);
-      } finally {
-        syncButton.disabled = false;
-        syncButton.textContent = 'Refresh now';
-      }
+      showNotice('No admin key in this browser — showing cached data. Save the key once to sync live.', true);
       return;
     }
 
-    // Viewer path: public refresh (cached data, no key needed).
     syncButton.disabled = true;
-    syncButton.textContent = 'Refreshing…';
+    syncButton.textContent = 'Syncing…';
     try {
-      const res = await fetch('/api/refresh', { method: 'POST' });
+      const res = await apiFetch('/api/sync', { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) {
-        showNotice(`Refresh failed: ${data.error || res.status}`, true);
-      } else {
-        const replayLabel = data.replay
-          ? ' (shown from cache — fresh shortly)'
-          : ' (cache is stale — owner sync needed for fresher figures)';
-        showNotice('Data refreshed' + replayLabel + '.', false);
-        // Update the live bits without a full reload.
-        refreshVisibleData();
-        loadStatus();
-        renderSetupCheck(true);
-      }
+      showNotice('Sync complete: ' + formatSyncSummary(data.synced));
+      refreshVisibleData();
+      loadStatus();
+      renderSetupCheck(true);
     } catch (err) {
-      showNotice('Refresh failed: ' + err.message, true);
+      const msg = err && err.message ? err.message : String(err);
+      showNotice('Sync failed: ' + msg, true);
+      if (/admin key/i.test(msg)) {
+        // A rejected key is useless; drop it so the owner can paste the right one.
+        localStorage.removeItem(ADMIN_KEY_STORAGE);
+      }
     } finally {
       syncButton.disabled = false;
       syncButton.textContent = 'Refresh now';
