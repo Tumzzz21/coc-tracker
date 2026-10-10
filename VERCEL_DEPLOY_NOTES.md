@@ -9,8 +9,10 @@
    Real sync still needs ADMIN_KEY (shift/ctrl-click "Refresh now", or the ⚙ gear icon).
 3. Client-side auto-refresh every 5 minutes from the app's own cached API (not the CoC API),
    pauses when the tab is hidden, refreshes on return, cleans up on unload.
-4. vercel.json cron schedule changed from "0 5 * * *" (daily 5am) to "*/30 * * * *"
-   (every 30 minutes). Cron endpoint now logs whether it succeeded.
+4. vercel.json declares a daily Vercel Cron job: `0 16 * * *` UTC (midnight
+   Philippines). The Vercel **Hobby** plan rejects schedules that run more
+   than once per day at deploy time, which is why the earlier every-30-min
+   schedule was replaced. Cron endpoint logs whether it succeeded.
 
 ## Env vars to set/change on Vercel
 
@@ -22,12 +24,13 @@
 
 ## How to confirm the cron is working
 
-1. Deploy. Wait for the next 30-min mark.
+1. Deploy. Wait for the next 16:00 UTC mark (midnight PH), or trigger it
+   manually: Vercel dashboard > Project > Cron Jobs > "Run" button.
 2. Open Vercel dashboard > Project > Cron Jobs — you should see runs scheduled.
 3. Open Vercel dashboard > Project > Logs — filter by `api/cron-sync`. Look for lines like:
    `cron-sync ok: ...` or `cron-sync failed: ...`.
-4. Visit https://<project>.vercel.app/api/status — "auto-sync by Vercel Cron" should show,
-   and "last:" should update every ~30 min.
+4. Visit https://<project>.vercel.app/api/status - "auto-sync by Vercel Cron" should show,
+   and "last:" should update once a day (after 16:00 UTC).
 
 ## Vercel cron limits
 
@@ -38,11 +41,11 @@
   allows schedules that run **once per day** — a more frequent expression such
   as `*/30 * * * *` fails at **deploy time** with "Hobby accounts are limited
   to daily cron jobs". **Pro** (and Enterprise) allow per-minute schedules.
-- This project deploys `*/30 * * * *` (every 30 min) and has already deployed
-  that exact `crons` block successfully in production, so the current plan
-  accepts it. If a deploy ever fails with the daily-limit error, either change
-  the schedule to once daily (e.g. `"0 12 * * *"`) or move to a plan that
-  allows frequent crons.
+- This project deploys `0 16 * * *` (once per day, midnight PH). The Hobby
+  plan **enforces** the daily limit at deploy time: pushing `*/30 * * * *`
+  fails deployment creation with `cron_jobs_limits_reached` (observed
+  2026-10-11). If the plan is ever upgraded to Pro, the schedule can be
+  changed back to `*/30 * * * *`.
 - Cron runs are counted as function invocations. Very frequent cron + heavy
   sync can hit function-duration / invocation limits.
 - Fallback if Vercel Cron is ever unusable: an external pinger such as
