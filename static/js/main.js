@@ -368,19 +368,21 @@ function updateMobileStatus() {
 if (syncButton) {
   syncButton.addEventListener('click', async (e) => {
     const forced = e.shiftKey || e.metaKey || e.ctrlKey;
-    let haveKey = Boolean(adminKeyValue());
-    if (!haveKey) {
-      // Ask for the key; if the owner declines or cancels, keep it a viewer refresh.
-      if (forced || await ensureAdmin()) {
-        haveKey = Boolean(adminKeyValue());
+    let haveKey;
+    if (forced) {
+      // Explicit real-sync request: ask for the key if we don't have one.
+      haveKey = Boolean(adminKeyValue()) || (await ensureAdmin());
+    } else {
+      // Plain click never prompts: visitors without a key stay on cached data
+      // (prompting them for ADMIN_KEY was a deliberate UX decision earlier).
+      haveKey = Boolean(adminKeyValue());
+      if (!haveKey) {
+        showNotice('Showing cached data — open ⚙ settings and save ADMIN_KEY once to sync live on click.', true);
+        return;
       }
     }
     if (!haveKey) {
-      if (forced) {
-        showNotice('Real sync needs the admin key (ADMIN_KEY).', true);
-        return;
-      }
-      showNotice('No admin key in this browser — showing cached data. Save the key once to sync live.', true);
+      showNotice('Real sync needs the admin key (ADMIN_KEY).', true);
       return;
     }
 
